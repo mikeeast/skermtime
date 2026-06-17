@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { addChild, createFamily, signOut } from "./actions";
 
@@ -61,6 +62,15 @@ export default async function DashboardPage() {
         </section>
       ) : (
         <section className="flex flex-col gap-6">
+          <nav className="flex gap-4 text-sm">
+            <span className="font-medium">Översikt</span>
+            <Link href="/dashboard/chores" className="text-gray-500 hover:underline">
+              Sysslor
+            </Link>
+            <Link href="/dashboard/approvals" className="text-gray-500 hover:underline">
+              Godkännanden
+            </Link>
+          </nav>
           <div>
             <h2 className="text-lg font-semibold">{family.name}</h2>
             <p className="text-sm text-gray-500">
@@ -74,16 +84,17 @@ export default async function DashboardPage() {
               <p className="text-sm text-gray-500">Inga barn tillagda än.</p>
             ) : (
               children.map((c) => (
-                <div
+                <Link
                   key={c.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3"
+                  href={`/dashboard/child/${c.id}`}
+                  className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50"
                 >
                   <span className="font-medium">
                     {c.icon ? `${c.icon} ` : ""}
                     {c.alias}
                   </span>
                   <span className="text-sm text-gray-500">{c.balance_minutes} min</span>
-                </div>
+                </Link>
               ))
             )}
           </div>
