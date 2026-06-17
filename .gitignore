@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+out/
+dist/
+build/
+.turbo/
+
+# .NET (agent)
+[Bb]in/
+[Oo]bj/
+*.user
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Logs & misc
+*.log
+.DS_Store
+Thumbs.db
+.vercel/
+coverage/
+playwright-report/
+test-results/
