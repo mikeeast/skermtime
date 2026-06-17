@@ -19,7 +19,7 @@ export default async function DashboardPage() {
 
   const { data: families } = await supabase
     .from("families")
-    .select("id, name, trial_ends_at")
+    .select("id, name, trial_ends_at, plan_status")
     .limit(1);
   const family = families?.[0];
 
@@ -74,6 +74,14 @@ export default async function DashboardPage() {
               Abonnemang
             </Link>
           </nav>
+          {!["trialing", "active"].includes(family.plan_status as string) && (
+            <Link
+              href="/dashboard/billing"
+              className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 hover:bg-red-100"
+            >
+              Abonnemanget är inte aktivt — aktivera för att fortsätta använda Skermtime.
+            </Link>
+          )}
           <div>
             <h2 className="text-lg font-semibold">{family.name}</h2>
             <p className="text-sm text-gray-500">
