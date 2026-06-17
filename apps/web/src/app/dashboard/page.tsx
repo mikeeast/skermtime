@@ -70,6 +70,9 @@ export default async function DashboardPage() {
             <Link href="/dashboard/approvals" className="text-gray-500 hover:underline">
               Godkännanden
             </Link>
+            <Link href="/dashboard/billing" className="text-gray-500 hover:underline">
+              Abonnemang
+            </Link>
           </nav>
           <div>
             <h2 className="text-lg font-semibold">{family.name}</h2>
