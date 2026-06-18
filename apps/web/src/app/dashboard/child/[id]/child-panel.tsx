@@ -3,6 +3,7 @@
 import { useOptimistic, useRef } from "react";
 import { adjustBalance, awardBounty } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
+import { formatMinutes } from "@/lib/earning/format";
 
 type LedgerEntry = {
   id: string;
@@ -28,6 +29,9 @@ const KIND_LABEL: Record<string, string> = {
   bounty: "Bonus (hack)",
   clawback: "Återtag",
 };
+
+const input = "h-9 w-full rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40";
+const amberInput = "h-9 w-full rounded-lg border border-amber-500/40 bg-card px-2 text-sm outline-none placeholder:text-amber-700/60 focus:ring-2 focus:ring-amber-500/40 dark:placeholder:text-amber-300/50";
 
 export function ChildPanel({
   childId,
@@ -127,24 +131,20 @@ export function ChildPanel({
         {icon ? `${icon} ` : ""}
         {alias}
       </h1>
-      <p className="mt-1 text-3xl font-bold tabular-nums">{wallet.balance} min</p>
+      <p className="mt-1 text-3xl font-bold tabular-nums">{formatMinutes(wallet.balance)}</p>
+      <p className="text-sm text-muted-foreground">{wallet.balance} minuter skärmtid kvar</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <form ref={adjustRef} action={onAdjust} className="rounded-xl border border-gray-200 p-4">
+        <form
+          ref={adjustRef}
+          action={onAdjust}
+          className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+        >
           <h2 className="text-sm font-semibold">Justera saldo</h2>
           <input type="hidden" name="childId" value={childId} />
-          <input
-            name="minutes"
-            type="number"
-            placeholder="+/- minuter"
-            className="mt-2 h-9 w-full rounded border border-gray-300 px-2 text-sm"
-          />
-          <input
-            name="note"
-            placeholder="Anledning (valfri)"
-            className="mt-2 h-9 w-full rounded border border-gray-300 px-2 text-sm"
-          />
-          <button className="mt-2 h-9 w-full rounded-lg bg-black text-sm font-medium text-white">
+          <input name="minutes" type="number" placeholder="+/- minuter" className={`mt-2 ${input}`} />
+          <input name="note" placeholder="Anledning (valfri)" className={`mt-2 ${input}`} />
+          <button className="mt-2 h-9 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90">
             Justera
           </button>
         </form>
@@ -152,29 +152,23 @@ export function ChildPanel({
         <form
           ref={bountyRef}
           action={onBounty}
-          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4"
         >
           <h2 className="text-sm font-semibold">🏴‍☠️ Hacker-bonus</h2>
-          <p className="mt-1 text-xs text-amber-800">Belöna ett upptäckt kringgående.</p>
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            Belöna ett upptäckt kringgående.
+          </p>
           <input type="hidden" name="childId" value={childId} />
-          <input
-            name="type"
-            placeholder="t.ex. clock-tamper"
-            className="mt-2 h-9 w-full rounded border border-amber-300 px-2 text-sm"
-          />
+          <input name="type" placeholder="t.ex. clock-tamper" className={`mt-2 ${amberInput}`} />
           <input
             name="minutes"
             type="number"
             min={1}
             placeholder="bonusminuter"
-            className="mt-2 h-9 w-full rounded border border-amber-300 px-2 text-sm"
+            className={`mt-2 ${amberInput}`}
           />
-          <input
-            name="writeup"
-            placeholder="Hur gjorde hen?"
-            className="mt-2 h-9 w-full rounded border border-amber-300 px-2 text-sm"
-          />
-          <button className="mt-2 h-9 w-full rounded-lg bg-amber-600 text-sm font-medium text-white">
+          <input name="writeup" placeholder="Hur gjorde hen?" className={`mt-2 ${amberInput}`} />
+          <button className="mt-2 h-9 w-full rounded-lg bg-amber-600 text-sm font-medium text-white transition hover:bg-amber-700">
             Ge bonus
           </button>
         </form>
@@ -182,37 +176,39 @@ export function ChildPanel({
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Enheter</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           Para barnets dator med agenten. Koden gäller i 15 minuter.
         </p>
         {visibleDevices.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">Inga enheter ännu.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Inga enheter ännu.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {visibleDevices.map((d) => (
               <li
                 key={d.id}
-                className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 px-4 py-3 text-sm"
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm"
               >
                 <span className="font-medium">{d.name}</span>
                 {d.paired ? (
-                  <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
                     parad
                     {d.last_seen_at
                       ? ` · sedd ${new Date(d.last_seen_at).toLocaleString("sv-SE")}`
                       : ""}
                   </span>
                 ) : d.pairing_code ? (
-                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
                     kod: <span className="font-mono font-semibold">{d.pairing_code}</span>
                   </span>
                 ) : (
-                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     skapar kod…
                   </span>
                 )}
                 <form action={() => onRevoke(d.id)} className="ml-auto">
-                  <button className="text-xs text-gray-400 hover:text-red-600">Återkalla</button>
+                  <button className="text-xs text-muted-foreground transition hover:text-red-500">
+                    Återkalla
+                  </button>
                 </form>
               </li>
             ))}
@@ -223,9 +219,9 @@ export function ChildPanel({
           <input
             name="name"
             placeholder="Datornamn (t.ex. Felix-PC)"
-            className="h-9 flex-1 rounded border border-gray-300 px-2 text-sm"
+            className="h-9 flex-1 rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40"
           />
-          <button className="h-9 rounded-lg bg-black px-4 text-sm font-medium text-white">
+          <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">
             Skapa parningskod
           </button>
         </form>
@@ -234,21 +230,23 @@ export function ChildPanel({
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Historik</h2>
         {wallet.ledger.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">Inga händelser ännu.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Inga händelser ännu.</p>
         ) : (
-          <ul className="mt-3 flex flex-col divide-y divide-gray-100">
+          <ul className="mt-3 flex flex-col divide-y divide-border">
             {wallet.ledger.map((e) => (
               <li key={e.id} className="flex items-center justify-between py-2 text-sm">
                 <span>
-                  <span className="text-gray-700">{KIND_LABEL[e.kind] ?? e.kind}</span>
-                  {e.note ? <span className="text-gray-400"> · {e.note}</span> : null}
-                  <span className="block text-xs text-gray-400">
+                  <span>{KIND_LABEL[e.kind] ?? e.kind}</span>
+                  {e.note ? <span className="text-muted-foreground"> · {e.note}</span> : null}
+                  <span className="block text-xs text-muted-foreground">
                     {new Date(e.created_at).toLocaleString("sv-SE")}
                   </span>
                 </span>
                 <span
-                  className={`tabular-nums font-medium ${
-                    e.delta_minutes >= 0 ? "text-green-600" : "text-red-600"
+                  className={`font-medium tabular-nums ${
+                    e.delta_minutes >= 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-red-500"
                   }`}
                 >
                   {e.delta_minutes >= 0 ? "+" : ""}

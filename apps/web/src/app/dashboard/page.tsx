@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 import { Children } from "./children";
 import { CreateFamily } from "./create-family";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Child = {
   id: string;
@@ -39,15 +40,20 @@ export default async function DashboardPage() {
     <main className="mx-auto max-w-4xl px-6 py-10">
       <header className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Skermtime</h1>
-        <form action={signOut}>
-          <button className="text-sm text-gray-500 hover:underline">Logga ut</button>
-        </form>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <form action={signOut}>
+            <button className="text-sm text-muted-foreground transition hover:text-foreground">
+              Logga ut
+            </button>
+          </form>
+        </div>
       </header>
 
       {!family ? (
-        <section className="rounded-xl border border-gray-200 p-6">
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Skapa din familj</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Första steget — sedan kan du lägga till barn.
           </p>
           <CreateFamily />
@@ -56,27 +62,36 @@ export default async function DashboardPage() {
         <section className="flex flex-col gap-6">
           <nav className="flex gap-4 text-sm">
             <span className="font-medium">Översikt</span>
-            <Link href="/dashboard/chores" className="text-gray-500 hover:underline">
+            <Link
+              href="/dashboard/chores"
+              className="text-muted-foreground transition hover:text-foreground"
+            >
               Sysslor
             </Link>
-            <Link href="/dashboard/approvals" className="text-gray-500 hover:underline">
+            <Link
+              href="/dashboard/approvals"
+              className="text-muted-foreground transition hover:text-foreground"
+            >
               Godkännanden
             </Link>
-            <Link href="/dashboard/billing" className="text-gray-500 hover:underline">
+            <Link
+              href="/dashboard/billing"
+              className="text-muted-foreground transition hover:text-foreground"
+            >
               Abonnemang
             </Link>
           </nav>
           {!["trialing", "active"].includes(family.plan_status as string) && (
             <Link
               href="/dashboard/billing"
-              className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 hover:bg-red-100"
+              className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-600 transition hover:bg-red-500/15 dark:text-red-400"
             >
               Abonnemanget är inte aktivt — aktivera för att fortsätta använda Skermtime.
             </Link>
           )}
           <div>
             <h2 className="text-lg font-semibold">{family.name}</h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Provperiod till {new Date(family.trial_ends_at).toLocaleDateString("sv-SE")}
             </p>
           </div>

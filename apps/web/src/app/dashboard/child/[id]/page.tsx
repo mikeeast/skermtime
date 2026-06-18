@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ChildPanel } from "./child-panel";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type LedgerEntry = {
   id: string;
@@ -49,11 +50,14 @@ export default async function ChildPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
-      <nav className="mb-8 text-sm">
-        <Link href="/dashboard" className="text-gray-500 hover:underline">
-          ← Översikt
-        </Link>
-      </nav>
+      <div className="mb-8 flex items-center justify-between">
+        <nav className="text-sm">
+          <Link href="/dashboard" className="text-muted-foreground transition hover:text-foreground">
+            ← Översikt
+          </Link>
+        </nav>
+        <ThemeToggle />
+      </div>
 
       <ChildPanel
         childId={child.id}

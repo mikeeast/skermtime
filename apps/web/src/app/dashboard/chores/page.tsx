@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ChoresManager } from "./chores-manager";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Chore = {
   id: string;
@@ -37,15 +38,21 @@ export default async function ChoresPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10">
-      <nav className="mb-8 flex gap-4 text-sm">
-        <Link href="/dashboard" className="text-gray-500 hover:underline">
-          ← Översikt
-        </Link>
-        <span className="font-medium">Sysslor</span>
-        <Link href="/dashboard/approvals" className="text-gray-500 hover:underline">
-          Godkännanden
-        </Link>
-      </nav>
+      <div className="mb-8 flex items-center justify-between">
+        <nav className="flex gap-4 text-sm">
+          <Link href="/dashboard" className="text-muted-foreground transition hover:text-foreground">
+            ← Översikt
+          </Link>
+          <span className="font-medium">Sysslor</span>
+          <Link
+            href="/dashboard/approvals"
+            className="text-muted-foreground transition hover:text-foreground"
+          >
+            Godkännanden
+          </Link>
+        </nav>
+        <ThemeToggle />
+      </div>
 
       <h1 className="text-2xl font-bold">Sysslor</h1>
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ApprovalsList, type Pending } from "./approvals-list";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Row = {
   id: string;
@@ -39,15 +40,21 @@ export default async function ApprovalsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <nav className="mb-8 flex gap-4 text-sm">
-        <Link href="/dashboard" className="text-gray-500 hover:underline">
-          ← Översikt
-        </Link>
-        <Link href="/dashboard/chores" className="text-gray-500 hover:underline">
-          Sysslor
-        </Link>
-        <span className="font-medium">Godkännanden</span>
-      </nav>
+      <div className="mb-8 flex items-center justify-between">
+        <nav className="flex gap-4 text-sm">
+          <Link href="/dashboard" className="text-muted-foreground transition hover:text-foreground">
+            ← Översikt
+          </Link>
+          <Link
+            href="/dashboard/chores"
+            className="text-muted-foreground transition hover:text-foreground"
+          >
+            Sysslor
+          </Link>
+          <span className="font-medium">Godkännanden</span>
+        </nav>
+        <ThemeToggle />
+      </div>
 
       <h1 className="text-2xl font-bold">Att godkänna</h1>
       <ApprovalsList initial={pending} />

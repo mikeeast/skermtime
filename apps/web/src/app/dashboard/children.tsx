@@ -30,19 +30,19 @@ export function Children({ initial }: { initial: Child[] }) {
   return (
     <div className="flex flex-col gap-2">
       {children.length === 0 ? (
-        <p className="text-sm text-gray-500">Inga barn tillagda än.</p>
+        <p className="text-sm text-muted-foreground">Inga barn tillagda än.</p>
       ) : (
         children.map((c) => (
           <Link
             key={c.id}
             href={`/dashboard/child/${c.id}`}
-            className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50"
+            className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-muted"
           >
             <span className="font-medium">
               {c.icon ? `${c.icon} ` : ""}
               {c.alias}
             </span>
-            <span className="text-sm text-gray-500">{c.balance_minutes} min</span>
+            <span className="text-sm text-muted-foreground">{c.balance_minutes} min</span>
           </Link>
         ))
       )}
@@ -52,15 +52,17 @@ export function Children({ initial }: { initial: Child[] }) {
           name="icon"
           placeholder="🙂"
           maxLength={2}
-          className="h-11 w-14 rounded-lg border border-gray-300 text-center"
+          className="h-11 w-14 rounded-xl border border-border bg-card text-center outline-none focus:ring-2 focus:ring-ring/40"
         />
         <input
           name="alias"
           required
           placeholder="Barnets alias"
-          className="h-11 flex-1 rounded-lg border border-gray-300 px-3"
+          className="h-11 flex-1 rounded-xl border border-border bg-card px-3 outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40"
         />
-        <button className="h-11 rounded-lg bg-black px-5 font-medium text-white">Lägg till</button>
+        <button className="h-11 rounded-xl bg-primary px-5 font-medium text-primary-foreground transition hover:opacity-90">
+          Lägg till
+        </button>
       </form>
     </div>
   );
