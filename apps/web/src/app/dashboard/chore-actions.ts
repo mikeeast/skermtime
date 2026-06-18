@@ -63,7 +63,7 @@ export async function activateLibraryChore(formData: FormData) {
   const { supabase, familyId } = await ctx();
   const { data: lib } = await supabase
     .from("chores")
-    .select("category, name, icon, reward_minutes, frequency, approval_mode")
+    .select("category, name, icon, reward_minutes, duration_minutes, frequency, approval_mode")
     .eq("id", libId)
     .is("family_id", null)
     .single();
@@ -74,6 +74,7 @@ export async function activateLibraryChore(formData: FormData) {
     name: lib.name,
     icon: lib.icon,
     reward_minutes: lib.reward_minutes,
+    duration_minutes: lib.duration_minutes,
     frequency: lib.frequency,
     approval_mode: lib.approval_mode,
     created_by_role: "parent",
@@ -86,6 +87,7 @@ export async function createChore(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim() || "Eget";
   const rewardRaw = Number(formData.get("reward"));
+  const durationRaw = Number(formData.get("duration"));
   const approval = String(formData.get("approval") ?? "parent");
   if (!name) return;
   const { supabase, familyId } = await ctx();
@@ -93,7 +95,8 @@ export async function createChore(formData: FormData) {
     family_id: familyId,
     category,
     name,
-    reward_minutes: Number.isFinite(rewardRaw) ? Math.max(0, Math.trunc(rewardRaw)) : 10,
+    reward_minutes: Number.isFinite(rewardRaw) ? Math.max(0, Math.trunc(rewardRaw)) : 30,
+    duration_minutes: Number.isFinite(durationRaw) ? Math.max(0, Math.trunc(durationRaw)) : 10,
     approval_mode: ["auto", "parent", "ai"].includes(approval) ? approval : "parent",
     created_by_role: "parent",
     is_approved: true,
@@ -103,14 +106,15 @@ export async function createChore(formData: FormData) {
 
 export async function setChoreReward(formData: FormData) {
   const id = String(formData.get("choreId") ?? "");
+  if (!id) return;
   const rewardRaw = Number(formData.get("reward"));
-  if (!id || !Number.isFinite(rewardRaw)) return;
+  const durationRaw = Number(formData.get("duration"));
+  const patch: { reward_minutes?: number; duration_minutes?: number } = {};
+  if (Number.isFinite(rewardRaw)) patch.reward_minutes = Math.max(0, Math.trunc(rewardRaw));
+  if (Number.isFinite(durationRaw)) patch.duration_minutes = Math.max(0, Math.trunc(durationRaw));
+  if (Object.keys(patch).length === 0) return;
   const { supabase, familyId } = await ctx();
-  await supabase
-    .from("chores")
-    .update({ reward_minutes: Math.max(0, Math.trunc(rewardRaw)) })
-    .eq("id", id)
-    .eq("family_id", familyId);
+  await supabase.from("chores").update(patch).eq("id", id).eq("family_id", familyId);
   revalidatePath("/dashboard/chores");
 }
 

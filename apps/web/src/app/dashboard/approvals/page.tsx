@@ -38,7 +38,7 @@ export default async function ApprovalsPage() {
   }));
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10">
+    <main className="mx-auto max-w-3xl px-6 py-10">
       <nav className="mb-8 flex gap-4 text-sm">
         <Link href="/dashboard" className="text-gray-500 hover:underline">
           ← Översikt

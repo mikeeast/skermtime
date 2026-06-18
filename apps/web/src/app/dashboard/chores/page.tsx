@@ -9,6 +9,7 @@ type Chore = {
   name: string;
   icon: string | null;
   reward_minutes: number;
+  duration_minutes: number;
   approval_mode: string;
 };
 type Child = { id: string; alias: string };
@@ -23,17 +24,10 @@ export default async function ChoresPage() {
   const family = fams?.[0];
   if (!family) redirect("/dashboard");
 
+  const sel = "id, category, name, icon, reward_minutes, duration_minutes, approval_mode";
   const [familyChoresRes, libraryRes, childrenRes] = await Promise.all([
-    supabase
-      .from("chores")
-      .select("id, category, name, icon, reward_minutes, approval_mode")
-      .eq("family_id", family.id)
-      .order("category"),
-    supabase
-      .from("chores")
-      .select("id, category, name, icon, reward_minutes, approval_mode")
-      .is("family_id", null)
-      .order("category"),
+    supabase.from("chores").select(sel).eq("family_id", family.id).order("category"),
+    supabase.from("chores").select(sel).is("family_id", null).order("category"),
     supabase
       .from("child_profiles")
       .select("id, alias")
@@ -42,7 +36,7 @@ export default async function ChoresPage() {
   ]);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-6 py-10">
       <nav className="mb-8 flex gap-4 text-sm">
         <Link href="/dashboard" className="text-gray-500 hover:underline">
           ← Översikt

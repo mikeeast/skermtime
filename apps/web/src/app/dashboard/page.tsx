@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10">
+    <main className="mx-auto max-w-4xl px-6 py-10">
       <header className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Skermtime</h1>
         <form action={signOut}>
