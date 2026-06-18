@@ -5,6 +5,20 @@
 
 ---
 
+## Status — 2026-06-17 (autonom byggspurt)
+
+Fas 0–5 implementerade och verifierade lokalt:
+- ✅ Monorepo, Supabase (5 migrationer, RLS verifierat), Next.js 16
+- ✅ Förälder-auth (magic-link + Google-knapp), familj + barnprofiler
+- ✅ Intjäningsmotor + plånbok/liggare, sysslor (bibliotek + egna), godkännanden, Strava, AI-fotoverifiering
+- ✅ Enhetsparning + .NET 10-agent (nedräkning, lås, tamper→bonus)
+- ✅ Stripe-prenumerationer (Checkout, kundportal, webhook, gating)
+- ✅ Tester: 23 enhetstester + 5 integrationstester (agent-loop end-to-end); build + lint rena; agenten bygger
+
+**Kräver dina hemligheter/konton för skarp drift:** Google OAuth, Strava-klient, `ANTHROPIC_API_KEY`, Stripe-nycklar; deploy till Vercel + hostad Supabase; kodsignering av agenten.
+
+---
+
 ## Beslutslogg (låsta beslut)
 
 | # | Beslut | Motivering |
