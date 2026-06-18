@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { signOut } from "./actions";
 import { Children } from "./children";
 import { CreateFamily } from "./create-family";
@@ -20,11 +21,14 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: families } = await supabase
-    .from("families")
-    .select("id, name, trial_ends_at, plan_status")
-    .limit(1);
-  const family = families?.[0];
+  const activeFamilyId = await getActiveFamilyId(supabase);
+  const { data: family } = activeFamilyId
+    ? await supabase
+        .from("families")
+        .select("id, name, trial_ends_at, plan_status")
+        .eq("id", activeFamilyId)
+        .single()
+    : { data: null };
 
   let children: Child[] = [];
   if (family) {
@@ -79,6 +83,12 @@ export default async function DashboardPage() {
               className="text-muted-foreground transition hover:text-foreground"
             >
               Abonnemang
+            </Link>
+            <Link
+              href="/dashboard/family"
+              className="text-muted-foreground transition hover:text-foreground"
+            >
+              Familj
             </Link>
           </nav>
           {!["trialing", "active"].includes(family.plan_status as string) && (

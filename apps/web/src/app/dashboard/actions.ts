@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveFamilyId, REFERRAL_COOKIE } from "@/lib/family/server";
 
 export async function createFamily(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -16,10 +18,20 @@ export async function createFamily(formData: FormData) {
 
   // RLS: families_insert_self_owned requires owner_id = auth.uid().
   // A trigger then enrolls the owner into family_members.
-  const { error } = await supabase
+  const { data: created, error } = await supabase
     .from("families")
-    .insert({ name, owner_id: user.id });
+    .insert({ name, owner_id: user.id })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+
+  // Redeem a referral code captured before sign-up (best-effort).
+  const jar = await cookies();
+  const refCode = jar.get(REFERRAL_COOKIE)?.value;
+  if (refCode && created?.id) {
+    await supabase.rpc("redeem_referral", { p_code: refCode, p_referred_family: created.id });
+    jar.delete(REFERRAL_COOKIE);
+  }
 
   revalidatePath("/dashboard");
 }
@@ -35,11 +47,7 @@ export async function addChild(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: families } = await supabase
-    .from("families")
-    .select("id")
-    .limit(1);
-  const familyId = families?.[0]?.id;
+  const familyId = await getActiveFamilyId(supabase);
   if (!familyId) return;
 
   const { error } = await supabase

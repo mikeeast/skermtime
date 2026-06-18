@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { CHORE_PHOTO_BUCKET } from "@/lib/chore/complete";
 import { ApprovalsList, type Pending } from "./approvals-list";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,16 +22,15 @@ export default async function ApprovalsPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: fams } = await supabase.from("families").select("id").limit(1);
-  const family = fams?.[0];
-  if (!family) redirect("/dashboard");
+  const familyId = await getActiveFamilyId(supabase);
+  if (!familyId) redirect("/dashboard");
 
   const { data } = await supabase
     .from("chore_completions")
     .select(
       "id, ai_verdict, photo_before, photo_after, chores(name, icon, reward_minutes), child_profiles(alias)",
     )
-    .eq("family_id", family.id)
+    .eq("family_id", familyId)
     .eq("status", "pending")
     .order("created_at");
 

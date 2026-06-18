@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { ChoresManager } from "./chores-manager";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -20,16 +21,15 @@ export default async function ChoresPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: fams } = await supabase.from("families").select("id").limit(1);
-  const family = fams?.[0];
-  if (!family) redirect("/dashboard");
+  const familyId = await getActiveFamilyId(supabase);
+  if (!familyId) redirect("/dashboard");
 
   const sel = "id, category, name, icon, reward_minutes, duration_minutes, approval_mode";
   const [familyChoresRes, libraryRes] = await Promise.all([
     supabase
       .from("chores")
       .select(sel)
-      .eq("family_id", family.id)
+      .eq("family_id", familyId)
       .order("category")
       .order("created_at")
       .order("id"),

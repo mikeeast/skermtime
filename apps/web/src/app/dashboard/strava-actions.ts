@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { parseDailyCap, parseMinutesPerKm } from "@/lib/earning/settings";
 
 async function ctx() {
@@ -11,8 +12,7 @@ async function ctx() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data } = await supabase.from("families").select("id").limit(1);
-  const familyId = data?.[0]?.id as string | undefined;
+  const familyId = await getActiveFamilyId(supabase);
   if (!familyId) redirect("/dashboard");
   return { supabase, user, familyId };
 }

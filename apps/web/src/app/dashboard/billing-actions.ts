@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { getStripe, stripeConfigured } from "@/lib/stripe/stripe";
 
 async function siteOrigin() {
@@ -19,8 +20,7 @@ async function familyId() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data } = await supabase.from("families").select("id").limit(1);
-  const id = data?.[0]?.id as string | undefined;
+  const id = await getActiveFamilyId(supabase);
   if (!id) redirect("/dashboard");
   return { supabase, user, id };
 }

@@ -9,6 +9,7 @@ import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/comple
 import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
 import { notifyApprovalPending } from "@/lib/notify/emit";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { hashPin } from "@/lib/child/session";
 
 async function ctx() {
@@ -17,8 +18,7 @@ async function ctx() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data } = await supabase.from("families").select("id").limit(1);
-  const familyId = data?.[0]?.id as string | undefined;
+  const familyId = await getActiveFamilyId(supabase);
   if (!familyId) redirect("/dashboard");
   return { supabase, user, familyId };
 }
