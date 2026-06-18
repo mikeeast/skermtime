@@ -50,4 +50,9 @@ test("parent logs in via magic link and manages a family", async ({ page }) => {
   await page.getByPlaceholder("Barnets alias").fill("E2E-barn");
   await page.getByRole("button", { name: /^Lägg till$/ }).click();
   await expect(page.getByText("E2E-barn")).toBeVisible();
+
+  // Open the child — chore logging lives here, not on the chore-management page.
+  await page.getByRole("link", { name: /E2E-barn/ }).click();
+  await expect(page).toHaveURL(/\/dashboard\/child\//);
+  await expect(page.getByRole("heading", { name: "Logga en syssla" })).toBeVisible();
 });

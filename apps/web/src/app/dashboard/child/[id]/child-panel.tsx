@@ -1,7 +1,8 @@
 "use client";
 
-import { useOptimistic, useRef } from "react";
-import { adjustBalance, awardBounty } from "../../chore-actions";
+import { useOptimistic, useRef, useState } from "react";
+import Link from "next/link";
+import { adjustBalance, awardBounty, markChoreDone } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
 import { formatMinutes } from "@/lib/earning/format";
 
@@ -20,6 +21,13 @@ type DeviceRow = {
   revoked: boolean;
   last_seen_at: string | null;
 };
+type ChoreOpt = {
+  id: string;
+  name: string;
+  icon: string | null;
+  reward_minutes: number;
+  approval_mode: string;
+};
 
 const KIND_LABEL: Record<string, string> = {
   earn_chore: "Syssla",
@@ -30,8 +38,10 @@ const KIND_LABEL: Record<string, string> = {
   clawback: "Återtag",
 };
 
-const input = "h-9 w-full rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40";
-const amberInput = "h-9 w-full rounded-lg border border-amber-500/40 bg-card px-2 text-sm outline-none placeholder:text-amber-700/60 focus:ring-2 focus:ring-amber-500/40 dark:placeholder:text-amber-300/50";
+const input =
+  "h-9 w-full rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40";
+const amberInput =
+  "h-9 w-full rounded-lg border border-amber-500/40 bg-card px-2 text-sm outline-none placeholder:text-amber-700/60 focus:ring-2 focus:ring-amber-500/40 dark:placeholder:text-amber-300/50";
 
 export function ChildPanel({
   childId,
@@ -40,6 +50,7 @@ export function ChildPanel({
   initialBalance,
   initialLedger,
   initialDevices,
+  chores,
 }: {
   childId: string;
   alias: string;
@@ -47,12 +58,13 @@ export function ChildPanel({
   initialBalance: number;
   initialLedger: LedgerEntry[];
   initialDevices: DeviceRow[];
+  chores: ChoreOpt[];
 }) {
   const [wallet, walletDispatch] = useOptimistic(
     { balance: initialBalance, ledger: initialLedger },
     (
       state: { balance: number; ledger: LedgerEntry[] },
-      a: { minutes: number; kind: "adjust" | "bounty"; note: string | null },
+      a: { minutes: number; kind: "adjust" | "bounty" | "earn_chore"; note: string | null },
     ) => ({
       balance: state.balance + a.minutes,
       ledger: [
@@ -76,9 +88,23 @@ export function ChildPanel({
     ) => (a.type === "add" ? [...state, a.device] : state.filter((d) => d.id !== a.id)),
   );
 
+  const [logged, setLogged] = useState<string | null>(null);
   const adjustRef = useRef<HTMLFormElement>(null);
   const bountyRef = useRef<HTMLFormElement>(null);
   const deviceRef = useRef<HTMLFormElement>(null);
+
+  async function onLogChore(c: ChoreOpt) {
+    // Auto-approved chores credit immediately; others go to the approvals queue.
+    if (c.approval_mode === "auto") {
+      walletDispatch({ minutes: c.reward_minutes, kind: "earn_chore", note: c.name });
+    }
+    setLogged(c.id);
+    setTimeout(() => setLogged((cur) => (cur === c.id ? null : cur)), 2000);
+    const fd = new FormData();
+    fd.set("choreId", c.id);
+    fd.set("childId", childId);
+    await markChoreDone(fd);
+  }
 
   async function onAdjust(formData: FormData) {
     const minutes = Number(formData.get("minutes"));
@@ -134,15 +160,54 @@ export function ChildPanel({
       <p className="mt-1 text-3xl font-bold tabular-nums">{formatMinutes(wallet.balance)}</p>
       <p className="text-sm text-muted-foreground">{wallet.balance} minuter skärmtid kvar</p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold">Logga en syssla</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Bocka av något {alias} har gjort.</p>
+        {chores.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Inga sysslor än —{" "}
+            <Link href="/dashboard/chores" className="underline">
+              lägg till på Sysslor
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {chores.map((c) => (
+              <form key={c.id} action={() => onLogChore(c)}>
+                <button
+                  type="submit"
+                  className="flex w-full flex-col items-start gap-0.5 rounded-xl border border-border bg-card p-3 text-left transition hover:bg-muted active:scale-[0.98]"
+                >
+                  <span className="text-sm font-medium">
+                    {c.icon ? `${c.icon} ` : ""}
+                    {c.name}
+                  </span>
+                  {logged === c.id ? (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      ✓ Loggad!
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      🎮 {formatMinutes(c.reward_minutes)}
+                      {c.approval_mode !== "auto" ? " · kräver ok" : ""}
+                    </span>
+                  )}
+                </button>
+              </form>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <form
           ref={adjustRef}
           action={onAdjust}
           className="rounded-2xl border border-border bg-card p-4 shadow-sm"
         >
           <h2 className="text-sm font-semibold">Justera saldo</h2>
-          <input type="hidden" name="childId" value={childId} />
-          <input name="minutes" type="number" placeholder="+/- minuter" className={`mt-2 ${input}`} />
+          <input name="minutes" type="number" inputMode="numeric" placeholder="+/- minuter" className={`mt-2 ${input}`} />
           <input name="note" placeholder="Anledning (valfri)" className={`mt-2 ${input}`} />
           <button className="mt-2 h-9 w-full rounded-lg bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90">
             Justera
@@ -158,11 +223,11 @@ export function ChildPanel({
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
             Belöna ett upptäckt kringgående.
           </p>
-          <input type="hidden" name="childId" value={childId} />
           <input name="type" placeholder="t.ex. clock-tamper" className={`mt-2 ${amberInput}`} />
           <input
             name="minutes"
             type="number"
+            inputMode="numeric"
             min={1}
             placeholder="bonusminuter"
             className={`mt-2 ${amberInput}`}
@@ -172,7 +237,7 @@ export function ChildPanel({
             Ge bonus
           </button>
         </form>
-      </div>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Enheter</h2>
@@ -215,7 +280,6 @@ export function ChildPanel({
           </ul>
         )}
         <form ref={deviceRef} action={onCreateDevice} className="mt-3 flex items-center gap-2">
-          <input type="hidden" name="childId" value={childId} />
           <input
             name="name"
             placeholder="Datornamn (t.ex. Felix-PC)"

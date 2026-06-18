@@ -15,18 +15,15 @@ type Chore = {
   duration_minutes: number;
   approval_mode: string;
 };
-type Child = { id: string; alias: string };
 
 type Action = { type: "add"; chore: Chore } | { type: "remove"; id: string };
 
 export function ChoresManager({
   initialFamily,
   library,
-  kids,
 }: {
   initialFamily: Chore[];
   library: Chore[];
-  kids: Child[];
 }) {
   const [chores, dispatch] = useOptimistic(initialFamily, (state: Chore[], a: Action) =>
     a.type === "add" ? [...state, a.chore] : state.filter((c) => c.id !== a.id),
@@ -83,7 +80,7 @@ export function ChoresManager({
         ) : (
           <ul className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {chores.map((c) => (
-              <ChoreCard key={c.id} chore={c} kids={kids} onDelete={onDelete} />
+              <ChoreCard key={c.id} chore={c} onDelete={onDelete} />
             ))}
           </ul>
         )}

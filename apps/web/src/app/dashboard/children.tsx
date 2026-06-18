@@ -32,19 +32,33 @@ export function Children({ initial }: { initial: Child[] }) {
       {children.length === 0 ? (
         <p className="text-sm text-muted-foreground">Inga barn tillagda än.</p>
       ) : (
-        children.map((c) => (
-          <Link
-            key={c.id}
-            href={`/dashboard/child/${c.id}`}
-            className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition hover:bg-muted"
-          >
-            <span className="font-medium">
-              {c.icon ? `${c.icon} ` : ""}
-              {c.alias}
-            </span>
-            <span className="text-sm text-muted-foreground">{c.balance_minutes} min</span>
-          </Link>
-        ))
+        children.map((c) => {
+          const body = (
+            <>
+              <span className="font-medium">
+                {c.icon ? `${c.icon} ` : ""}
+                {c.alias}
+              </span>
+              <span className="text-sm text-muted-foreground">{c.balance_minutes} min</span>
+            </>
+          );
+          const base =
+            "flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3";
+          // Optimistic (not-yet-saved) rows aren't clickable — their id isn't real yet.
+          return c.id.startsWith("temp-") ? (
+            <div key={c.id} className={`${base} opacity-60`}>
+              {body}
+            </div>
+          ) : (
+            <Link
+              key={c.id}
+              href={`/dashboard/child/${c.id}`}
+              className={`${base} transition hover:bg-muted`}
+            >
+              {body}
+            </Link>
+          );
+        })
       )}
 
       <form ref={formRef} action={action} className="flex gap-3">

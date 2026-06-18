@@ -13,7 +13,6 @@ type Chore = {
   duration_minutes: number;
   approval_mode: string;
 };
-type Child = { id: string; alias: string };
 
 export default async function ChoresPage() {
   const supabase = await createClient();
@@ -26,14 +25,9 @@ export default async function ChoresPage() {
   if (!family) redirect("/dashboard");
 
   const sel = "id, category, name, icon, reward_minutes, duration_minutes, approval_mode";
-  const [familyChoresRes, libraryRes, childrenRes] = await Promise.all([
+  const [familyChoresRes, libraryRes] = await Promise.all([
     supabase.from("chores").select(sel).eq("family_id", family.id).order("category"),
     supabase.from("chores").select(sel).is("family_id", null).order("category"),
-    supabase
-      .from("child_profiles")
-      .select("id, alias")
-      .eq("family_id", family.id)
-      .order("created_at"),
   ]);
 
   return (
@@ -55,11 +49,13 @@ export default async function ChoresPage() {
       </div>
 
       <h1 className="text-2xl font-bold">Sysslor</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Hantera familjens syssel-katalog. Avbockning sker på respektive barns sida.
+      </p>
 
       <ChoresManager
         initialFamily={(familyChoresRes.data ?? []) as Chore[]}
         library={(libraryRes.data ?? []) as Chore[]}
-        kids={(childrenRes.data ?? []) as Child[]}
       />
     </main>
   );
