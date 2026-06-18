@@ -32,7 +32,7 @@ export default async function BarnStart() {
     .single();
   if (!child) redirect("/barn");
 
-  const [choresRes, ledgerRes] = await Promise.all([
+  const [choresRes, ledgerRes, stravaRes] = await Promise.all([
     admin
       .from("chores")
       .select("id, name, icon, reward_minutes, approval_mode")
@@ -47,6 +47,7 @@ export default async function BarnStart() {
       .eq("child_id", childId)
       .order("created_at", { ascending: false })
       .limit(10),
+    admin.from("strava_connections").select("id").eq("child_id", childId).maybeSingle(),
   ]);
 
   return (
@@ -70,6 +71,7 @@ export default async function BarnStart() {
         initialBalance={child.balance_minutes}
         chores={(choresRes.data ?? []) as ChoreOpt[]}
         ledger={(ledgerRes.data ?? []) as LedgerEntry[]}
+        stravaConnected={Boolean(stravaRes.data)}
       />
     </main>
   );

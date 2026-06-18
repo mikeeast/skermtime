@@ -4,6 +4,7 @@ import { useOptimistic, useRef, useState } from "react";
 import Link from "next/link";
 import { adjustBalance, awardBounty, markChoreDone, setChildPin } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
+import { disconnectStrava, updateFamilyEarning } from "../../strava-actions";
 import { formatMinutes } from "@/lib/earning/format";
 
 type LedgerEntry = {
@@ -28,6 +29,21 @@ type ChoreOpt = {
   reward_minutes: number;
   approval_mode: string;
 };
+type StravaConnection = {
+  id: string;
+  athlete_id: number;
+  scope: string | null;
+  created_at: string;
+};
+type RunRow = {
+  id: string;
+  type: string | null;
+  distance_m: number;
+  moving_time_s: number | null;
+  started_at: string;
+  minutes_awarded: number;
+};
+type FamilyEarning = { minutesPerKm: number; dailyCap: number | null };
 
 const KIND_LABEL: Record<string, string> = {
   earn_chore: "Syssla",
@@ -52,6 +68,10 @@ export function ChildPanel({
   initialLedger,
   initialDevices,
   chores,
+  stravaConnection,
+  recentRuns,
+  familyEarning,
+  stravaStatus,
 }: {
   childId: string;
   alias: string;
@@ -61,6 +81,10 @@ export function ChildPanel({
   initialLedger: LedgerEntry[];
   initialDevices: DeviceRow[];
   chores: ChoreOpt[];
+  stravaConnection: StravaConnection | null;
+  recentRuns: RunRow[];
+  familyEarning: FamilyEarning;
+  stravaStatus?: "connected" | "error";
 }) {
   const [wallet, walletDispatch] = useOptimistic(
     { balance: initialBalance, ledger: initialLedger },
@@ -200,6 +224,100 @@ export function ChildPanel({
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mt-8 rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="text-lg font-semibold">Strava</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Koppla {alias}s Strava så blir löprundor automatiskt till skärmtid.
+        </p>
+
+        {stravaStatus === "connected" && (
+          <p className="mt-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            ✅ Strava är kopplat!
+          </p>
+        )}
+        {stravaStatus === "error" && (
+          <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+            Något gick fel vid Strava-kopplingen. Försök igen.
+          </p>
+        )}
+
+        {stravaConnection ? (
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
+                🟢 Kopplat
+              </span>
+              <span className="text-muted-foreground">Strava-id {stravaConnection.athlete_id}</span>
+              <form action={disconnectStrava} className="ml-auto">
+                <input type="hidden" name="childId" value={childId} />
+                <button className="text-xs text-muted-foreground transition hover:text-red-500">
+                  Koppla bort
+                </button>
+              </form>
+            </div>
+
+            {recentRuns.length > 0 && (
+              <ul className="mt-3 flex flex-col divide-y divide-border">
+                {recentRuns.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between py-2 text-sm">
+                    <span>
+                      {(Number(r.distance_m) / 1000).toFixed(1)} km
+                      <span className="block text-xs text-muted-foreground">
+                        {new Date(r.started_at).toLocaleDateString("sv-SE")}
+                      </span>
+                    </span>
+                    <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                      +{r.minutes_awarded} min
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <a
+            href={`/api/strava/connect?child=${childId}`}
+            className="mt-3 inline-flex h-9 items-center rounded-lg bg-[#fc4c02] px-4 text-sm font-medium text-white transition hover:opacity-90"
+          >
+            Koppla Strava
+          </a>
+        )}
+
+        <form action={updateFamilyEarning} className="mt-4 border-t border-border pt-4">
+          <input type="hidden" name="childId" value={childId} />
+          <h3 className="text-sm font-semibold">Intjäning</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Gäller hela familjen.</p>
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Minuter per km
+              <input
+                name="minutesPerKm"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                defaultValue={familyEarning.minutesPerKm}
+                className={`w-28 ${input}`}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Dagligt tak (min)
+              <input
+                name="dailyCap"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                defaultValue={familyEarning.dailyCap ?? ""}
+                placeholder="Inget tak"
+                className={`w-28 ${input}`}
+              />
+            </label>
+            <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">
+              Spara
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -33,10 +33,12 @@ export function ChildHome({
   initialBalance,
   chores,
   ledger,
+  stravaConnected,
 }: {
   initialBalance: number;
   chores: ChoreOpt[];
   ledger: LedgerEntry[];
+  stravaConnected?: boolean;
 }) {
   const [balance, addBalance] = useOptimistic(initialBalance, (b: number, delta: number) => b + delta);
   const [flash, setFlash] = useState<string | null>(null);
@@ -59,6 +61,10 @@ export function ChildHome({
           <p className="mt-1 text-5xl font-bold tabular-nums">{formatMinutes(balance)}</p>
         </div>
       </section>
+
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        {stravaConnected ? "🏃 Strava kopplat" : "Be en förälder koppla din Strava"}
+      </p>
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Mina sysslor</h2>
