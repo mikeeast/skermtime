@@ -10,6 +10,7 @@ import { aiConfigured } from "@/lib/ai/verifyChore";
 import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
 import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { notifyApprovalPending } from "@/lib/notify/emit";
 
 export async function childLogin(formData: FormData) {
   const code = String(formData.get("code") ?? "")
@@ -127,6 +128,15 @@ export async function logChore(formData: FormData) {
     await awardStreaksAndBadges(admin, { childId, familyId: chore.family_id, tz });
   } else if (verdict) {
     await admin.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
+  }
+
+  if (decision === "parent") {
+    void notifyApprovalPending(admin, {
+      familyId: chore.family_id,
+      childId,
+      completionId: completion.id,
+      choreName: chore.name,
+    });
   }
 
   revalidatePath("/barn/start");

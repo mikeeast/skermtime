@@ -13,6 +13,23 @@ export function localDay(date: Date, tz: string): string {
   }).format(date);
 }
 
+const ISO_DOW: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+
+/** Local ISO weekday (1=Mon..7=Sun) and minutes-from-midnight for an instant in a timezone. */
+export function localClock(date: Date, tz: string): { dow: number; minute: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const wd = parts.find((p) => p.type === "weekday")?.value ?? "Mon";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0") % 24;
+  const min = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return { dow: ISO_DOW[wd] ?? 1, minute: hour * 60 + min };
+}
+
 /** Monday (ISO week start) of the week containing `dayStr`, as "YYYY-MM-DD". Pure calendar math. */
 export function weekStartDay(dayStr: string): string {
   const [y, m, d] = dayStr.split("-").map(Number);

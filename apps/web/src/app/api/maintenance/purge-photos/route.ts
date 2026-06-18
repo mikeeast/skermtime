@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CHORE_PHOTO_BUCKET } from "@/lib/chore/complete";
+import { cronAuthorized } from "@/lib/cron/guard";
 
 export const runtime = "nodejs";
 
 const RETENTION_DAYS = 14;
 
 // GDPR: chore photos may show the home/children. Keep them only long enough for the
-// audit trail, then purge. Gated on CRON_SECRET; wired to Vercel Cron in Fas 8.
-export async function POST(request: Request) {
-  const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+// audit trail, then purge. Gated on CRON_SECRET; wired to Vercel Cron (daily).
+export async function GET(request: Request) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

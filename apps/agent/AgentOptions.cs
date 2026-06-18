@@ -12,4 +12,7 @@ public sealed class AgentOptions
 
     /// <summary>Input idle beyond this is not counted as screen time.</summary>
     public int IdleThresholdSeconds { get; set; } = 60;
+
+    /// <summary>During a server outage, keep honoring the last cached lock schedule (minutes).</summary>
+    public int OfflineGraceMinutes { get; set; } = 60;
 }

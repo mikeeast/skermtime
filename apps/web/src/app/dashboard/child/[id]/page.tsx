@@ -2,7 +2,15 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ChildPanel } from "./child-panel";
+import type { Schedule } from "./schedule-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
+
+type NotifyPrefs = {
+  email_approvals: boolean;
+  email_low_balance: boolean;
+  email_weekly: boolean;
+  low_balance_threshold: number;
+};
 
 type LedgerEntry = {
   id: string;
@@ -58,12 +66,12 @@ export default async function ChildPage({
 
   const { data: child } = await supabase
     .from("child_profiles")
-    .select("id, alias, icon, balance_minutes, family_id, login_code")
+    .select("id, alias, icon, balance_minutes, family_id, login_code, daily_screen_cap_minutes")
     .eq("id", id)
     .single();
   if (!child) notFound();
 
-  const [ledgerRes, devicesRes, choresRes, stravaConnRes, runsRes, familyRes] =
+  const [ledgerRes, devicesRes, choresRes, stravaConnRes, runsRes, familyRes, scheduleRes, prefsRes] =
     await Promise.all([
       supabase
         .from("ledger_entries")
@@ -101,6 +109,16 @@ export default async function ChildPage({
         .select("strava_minutes_per_km, daily_cap_minutes")
         .eq("id", child.family_id)
         .single(),
+      supabase
+        .from("lock_schedules")
+        .select("id, label, days, start_min, end_min")
+        .eq("child_id", id)
+        .order("created_at"),
+      supabase
+        .from("notification_prefs")
+        .select("email_approvals, email_low_balance, email_weekly, low_balance_threshold")
+        .eq("family_id", child.family_id)
+        .maybeSingle(),
     ]);
 
   return (
@@ -130,6 +148,9 @@ export default async function ChildPage({
           dailyCap: familyRes.data?.daily_cap_minutes ?? null,
         }}
         stravaStatus={strava === "connected" ? "connected" : strava === "error" ? "error" : undefined}
+        schedules={(scheduleRes.data ?? []) as Schedule[]}
+        dailyCap={child.daily_screen_cap_minutes ?? null}
+        notifyPrefs={(prefsRes.data ?? null) as NotifyPrefs | null}
       />
     </main>
   );

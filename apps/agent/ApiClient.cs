@@ -8,7 +8,17 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
     private readonly AgentOptions _opts = options.Value;
 
     public record PairResult(string Token, string? ChildAlias, int BalanceMinutes);
-    public record HeartbeatResult(int BalanceMinutes, int[] WarnAtMinutes, int LockAtMinutes);
+    public record ScheduleWindow(int StartMin, int EndMin, int[] Days);
+    public record HeartbeatResult(
+        int BalanceMinutes,
+        int[] WarnAtMinutes,
+        int LockAtMinutes,
+        bool LockNow,
+        string? Reason,
+        int? MinutesUntilWindow,
+        ScheduleWindow[] ScheduleWindows,
+        int ServerLocalDow,
+        int ServerLocalMinute);
     public record TamperResult(int BonusMinutes, string? Message);
 
     private string Url(string path) => _opts.ServerUrl.TrimEnd('/') + path;
@@ -34,9 +44,20 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
         var res = await http.SendAsync(req, ct);
         if (!res.IsSuccessStatusCode) return null;
         var body = await res.Content.ReadFromJsonAsync<HeartbeatResponse>(ct);
-        return body is null
-            ? null
-            : new HeartbeatResult(body.balanceMinutes, body.warnAtMinutes ?? [], body.lockAtMinutes);
+        if (body is null) return null;
+        var windows = (body.scheduleWindows ?? [])
+            .Select(w => new ScheduleWindow(w.startMin, w.endMin, w.days ?? []))
+            .ToArray();
+        return new HeartbeatResult(
+            body.balanceMinutes,
+            body.warnAtMinutes ?? [],
+            body.lockAtMinutes,
+            body.lockNow,
+            body.reason,
+            body.minutesUntilWindow,
+            windows,
+            body.serverLocalDow,
+            body.serverLocalMinute);
     }
 
     public async Task<TamperResult?> ReportTamperAsync(string token, string type, string? writeup, CancellationToken ct)
@@ -53,6 +74,16 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
     }
 
     private sealed record PairResponse(string token, string? childAlias, int balanceMinutes);
-    private sealed record HeartbeatResponse(int balanceMinutes, int[]? warnAtMinutes, int lockAtMinutes);
+    private sealed record HeartbeatResponse(
+        int balanceMinutes,
+        int[]? warnAtMinutes,
+        int lockAtMinutes,
+        bool lockNow,
+        string? reason,
+        int? minutesUntilWindow,
+        ScheduleWindowDto[]? scheduleWindows,
+        int serverLocalDow,
+        int serverLocalMinute);
+    private sealed record ScheduleWindowDto(int startMin, int endMin, int[]? days);
     private sealed record TamperResponse(int bonusMinutes, string? message);
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { adjustBalance, awardBounty, markChoreDone, setChildPin } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
 import { disconnectStrava, updateFamilyEarning } from "../../strava-actions";
+import { updateNotifyPrefs } from "../../notify-actions";
+import { ScheduleEditor, type Schedule } from "./schedule-editor";
 import { formatMinutes } from "@/lib/earning/format";
 
 type LedgerEntry = {
@@ -44,6 +46,12 @@ type RunRow = {
   minutes_awarded: number;
 };
 type FamilyEarning = { minutesPerKm: number; dailyCap: number | null };
+type NotifyPrefs = {
+  email_approvals: boolean;
+  email_low_balance: boolean;
+  email_weekly: boolean;
+  low_balance_threshold: number;
+};
 
 const KIND_LABEL: Record<string, string> = {
   earn_chore: "Syssla",
@@ -73,6 +81,9 @@ export function ChildPanel({
   recentRuns,
   familyEarning,
   stravaStatus,
+  schedules,
+  dailyCap,
+  notifyPrefs,
 }: {
   childId: string;
   alias: string;
@@ -86,6 +97,9 @@ export function ChildPanel({
   recentRuns: RunRow[];
   familyEarning: FamilyEarning;
   stravaStatus?: "connected" | "error";
+  schedules: Schedule[];
+  dailyCap: number | null;
+  notifyPrefs: NotifyPrefs | null;
 }) {
   const [wallet, walletDispatch] = useOptimistic(
     { balance: initialBalance, ledger: initialLedger },
@@ -435,6 +449,54 @@ export function ChildPanel({
           />
           <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">
             Skapa parningskod
+          </button>
+        </form>
+      </section>
+
+      <ScheduleEditor childId={childId} initialSchedules={schedules} dailyCap={dailyCap} />
+
+      <section className="mt-8 rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="text-lg font-semibold">Notiser</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Mejl till föräldern. Gäller hela familjen.</p>
+        <form action={updateNotifyPrefs} className="mt-3 flex flex-col gap-2 text-sm">
+          <input type="hidden" name="childId" value={childId} />
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="email_approvals"
+              defaultChecked={notifyPrefs?.email_approvals ?? true}
+            />
+            Vid väntande godkännanden
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="email_low_balance"
+              defaultChecked={notifyPrefs?.email_low_balance ?? true}
+            />
+            När saldot är lågt
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="email_weekly"
+              defaultChecked={notifyPrefs?.email_weekly ?? true}
+            />
+            Veckosammanfattning
+          </label>
+          <label className="flex items-center gap-2">
+            Gräns för lågt saldo (min)
+            <input
+              name="low_balance_threshold"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              defaultValue={notifyPrefs?.low_balance_threshold ?? 15}
+              className="h-9 w-24 rounded-lg border border-border bg-card px-2 outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </label>
+          <button className="mt-1 h-9 w-fit rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">
+            Spara notisinställningar
           </button>
         </form>
       </section>

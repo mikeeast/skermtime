@@ -25,6 +25,12 @@ public sealed class Worker(
         double activeSeconds = 0;
         int lastWarn = int.MaxValue;
 
+        // Cached lock schedule for the offline fallback.
+        ApiClient.ScheduleWindow[] cachedWindows = [];
+        int srvDow = 0, srvMinute = 0;
+        var srvAtMono = TimeSpan.Zero;
+        bool haveSchedule = false;
+
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var lastMono = sw.Elapsed;
         var lastWall = DateTimeOffset.UtcNow;
@@ -59,9 +65,37 @@ public sealed class Worker(
             if (hb is null)
             {
                 logger.LogDebug("Heartbeat failed; will retry next tick.");
+                // Offline fallback: enforce bedtime from the last known schedule.
+                if (haveSchedule && cachedWindows.Length > 0)
+                {
+                    int elapsedMin = (int)(nowMono - srvAtMono).TotalMinutes;
+                    if (elapsedMin > _opts.OfflineGraceMinutes)
+                        logger.LogDebug("Offline > {Grace} min; still honoring cached schedule.",
+                            _opts.OfflineGraceMinutes);
+                    var (offDow, offMin) = Schedule.Advance(srvDow, srvMinute, elapsedMin);
+                    if (Schedule.InWindow(cachedWindows, offDow, offMin))
+                    {
+                        logger.LogInformation("Offline läggdags-lås — låser skärmen.");
+                        if (OperatingSystem.IsWindows()) Native.Lock();
+                    }
+                }
                 continue;
             }
             if (consumed > 0) activeSeconds -= consumed * 60;
+
+            // Cache the schedule so the offline fallback can keep enforcing bedtime.
+            cachedWindows = hb.ScheduleWindows;
+            srvDow = hb.ServerLocalDow;
+            srvMinute = hb.ServerLocalMinute;
+            srvAtMono = nowMono;
+            haveSchedule = true;
+
+            // Authoritative schedule / daily-cap lock — independent of balance.
+            if (hb.LockNow)
+            {
+                logger.LogInformation("Schemalåst ({Reason}) — låser skärmen.", hb.Reason ?? "schema");
+                if (OperatingSystem.IsWindows()) Native.Lock();
+            }
 
             int unsent = (int)(activeSeconds / 60);
             int effective = hb.BalanceMinutes - unsent;

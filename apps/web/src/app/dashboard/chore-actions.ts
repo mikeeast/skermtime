@@ -8,6 +8,7 @@ import { aiConfigured } from "@/lib/ai/verifyChore";
 import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
 import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { notifyApprovalPending } from "@/lib/notify/emit";
 import { hashPin } from "@/lib/child/session";
 
 async function ctx() {
@@ -162,6 +163,15 @@ export async function markChoreDone(formData: FormData) {
     await awardStreaksAndBadges(supabase, { childId, familyId, tz });
   } else if (verdict) {
     await supabase.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
+  }
+
+  if (decision === "parent") {
+    void notifyApprovalPending(createAdminClient(), {
+      familyId,
+      childId,
+      completionId: completion.id,
+      choreName: chore.name,
+    });
   }
 
   revalidatePath("/dashboard");
