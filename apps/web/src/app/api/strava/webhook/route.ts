@@ -8,6 +8,8 @@ import {
   tokenExpired,
   type StravaWebhookEvent,
 } from "@/lib/earning/strava";
+import { DEFAULT_TIMEZONE } from "@/lib/earning/period";
+import { awardStreaksAndBadges } from "@/lib/engagement/badges";
 
 // Strava subscription validation handshake.
 export async function GET(request: Request) {
@@ -85,7 +87,7 @@ export async function POST(request: Request) {
 
   const { data: fam } = await admin
     .from("families")
-    .select("strava_minutes_per_km, daily_cap_minutes")
+    .select("strava_minutes_per_km, daily_cap_minutes, timezone")
     .eq("id", conn.family_id)
     .single();
 
@@ -148,6 +150,14 @@ export async function POST(request: Request) {
     minutes_awarded: minutes,
     ledger_entry_id: ledgerId,
   });
+
+  if (decision.action === "credit") {
+    await awardStreaksAndBadges(admin, {
+      childId: conn.child_id,
+      familyId: conn.family_id,
+      tz: fam?.timezone ?? DEFAULT_TIMEZONE,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

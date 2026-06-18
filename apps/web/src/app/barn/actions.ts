@@ -8,6 +8,8 @@ import { signChildToken, verifyPin } from "@/lib/child/session";
 import { CHILD_COOKIE, getChildId } from "@/lib/child/server";
 import { aiConfigured } from "@/lib/ai/verifyChore";
 import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
+import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
+import { awardStreaksAndBadges } from "@/lib/engagement/badges";
 
 export async function childLogin(formData: FormData) {
   const code = String(formData.get("code") ?? "")
@@ -61,10 +63,25 @@ export async function logChore(formData: FormData) {
 
   const { data: chore } = await admin
     .from("chores")
-    .select("id, name, reward_minutes, approval_mode, family_id, active")
+    .select("id, name, reward_minutes, approval_mode, frequency, family_id, active")
     .eq("id", choreId)
     .single();
   if (!chore || chore.family_id !== child.family_id || !chore.active) return;
+
+  const tz = await familyTimezone(admin, chore.family_id);
+  // Daily/weekly chores can only be logged once per period.
+  if (chore.frequency === "daily" || chore.frequency === "weekly") {
+    const done = await doneChoreIdsThisPeriod(
+      admin,
+      childId,
+      [{ id: chore.id, frequency: chore.frequency }],
+      tz,
+    );
+    if (done.has(chore.id)) {
+      revalidatePath("/barn/start");
+      return;
+    }
+  }
 
   const { data: completion } = await admin
     .from("chore_completions")
@@ -107,6 +124,7 @@ export async function logChore(formData: FormData) {
       note: chore.name,
       verdict,
     });
+    await awardStreaksAndBadges(admin, { childId, familyId: chore.family_id, tz });
   } else if (verdict) {
     await admin.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
   }

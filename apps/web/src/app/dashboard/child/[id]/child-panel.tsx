@@ -52,6 +52,7 @@ const KIND_LABEL: Record<string, string> = {
   adjust: "Justering",
   bounty: "Bonus (hack)",
   clawback: "Återtag",
+  streak_bonus: "Svitbonus 🔥",
 };
 
 const input =

@@ -12,6 +12,7 @@ type ChoreOpt = {
   icon: string | null;
   reward_minutes: number;
   approval_mode: string;
+  frequency: string;
 };
 type LedgerEntry = {
   id: string;
@@ -19,6 +20,13 @@ type LedgerEntry = {
   kind: string;
   note: string | null;
   created_at: string;
+};
+export type BadgeView = {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  earned: boolean;
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -28,21 +36,32 @@ const KIND_LABEL: Record<string, string> = {
   adjust: "Justering",
   bounty: "Bonus",
   clawback: "Återtag",
+  streak_bonus: "Svitbonus 🔥",
 };
+
+const RECURRING = new Set(["daily", "weekly"]);
 
 export function ChildHome({
   initialBalance,
   chores,
   ledger,
   stravaConnected,
+  streak = 0,
+  doneChoreIds = [],
+  badges = [],
 }: {
   initialBalance: number;
   chores: ChoreOpt[];
   ledger: LedgerEntry[];
   stravaConnected?: boolean;
+  streak?: number;
+  doneChoreIds?: string[];
+  badges?: BadgeView[];
 }) {
   const [balance, addBalance] = useOptimistic(initialBalance, (b: number, delta: number) => b + delta);
   const [flash, setFlash] = useState<string | null>(null);
+  // Locally track which recurring chores are done this period (optimistic).
+  const [done, setDone] = useState<Set<string>>(() => new Set(doneChoreIds));
 
   // AI-photo capture state.
   const [aiChore, setAiChore] = useState<ChoreOpt | null>(null);
@@ -52,8 +71,13 @@ export function ChildHome({
   const beforeRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
 
+  function markDone(c: ChoreOpt) {
+    if (RECURRING.has(c.frequency)) setDone((cur) => new Set(cur).add(c.id));
+  }
+
   async function onDo(c: ChoreOpt) {
     if (c.approval_mode === "auto") addBalance(c.reward_minutes);
+    markDone(c);
     setFlash(c.id);
     setTimeout(() => setFlash((cur) => (cur === c.id ? null : cur)), 2000);
     const fd = new FormData();
@@ -97,6 +121,7 @@ export function ChildHome({
       fd.set("afterUrl", afterPath);
       await logChore(fd);
 
+      markDone(c);
       setReviewMsg(`📷 ${c.name} skickad för granskning!`);
       setTimeout(() => setReviewMsg(null), 4000);
       setAiChore(null);
@@ -121,6 +146,12 @@ export function ChildHome({
         {stravaConnected ? "🏃 Strava kopplat" : "Be en förälder koppla din Strava"}
       </p>
 
+      {streak > 0 && (
+        <p className="mt-3 rounded-2xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 dark:text-amber-300">
+          🔥 {streak} {streak === 1 ? "dag" : "dagar"} i rad!
+        </p>
+      )}
+
       <section className="mt-8">
         <h2 className="text-lg font-semibold">Mina sysslor</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -136,7 +167,18 @@ export function ChildHome({
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {chores.map((c) =>
-              c.approval_mode === "ai" ? (
+              done.has(c.id) ? (
+                <div
+                  key={c.id}
+                  className="flex w-full flex-col items-center gap-1 rounded-2xl border border-border bg-muted/50 p-4 text-center opacity-70"
+                >
+                  <span className="text-3xl">{c.icon ?? "✅"}</span>
+                  <span className="text-sm font-medium">{c.name}</span>
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    ✓ Klar
+                  </span>
+                </div>
+              ) : c.approval_mode === "ai" ? (
                 <button
                   key={c.id}
                   type="button"
@@ -203,6 +245,26 @@ export function ChildHome({
           </ul>
         )}
       </section>
+
+      {badges.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold">Märken</h2>
+          <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {badges.map((b) => (
+              <div
+                key={b.id}
+                title={b.description}
+                className={`flex flex-col items-center gap-1 rounded-2xl border border-border p-3 text-center ${
+                  b.earned ? "bg-card" : "bg-muted/40 opacity-40 grayscale"
+                }`}
+              >
+                <span className="text-3xl">{b.icon}</span>
+                <span className="text-[11px] font-medium leading-tight">{b.name}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {aiChore && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">

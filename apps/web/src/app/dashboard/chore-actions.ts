@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { aiConfigured } from "@/lib/ai/verifyChore";
 import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
+import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
+import { awardStreaksAndBadges } from "@/lib/engagement/badges";
 import { hashPin } from "@/lib/child/session";
 
 async function ctx() {
@@ -99,10 +101,22 @@ export async function markChoreDone(formData: FormData) {
   const { supabase, user, familyId } = await ctx();
   const { data: chore } = await supabase
     .from("chores")
-    .select("id, name, reward_minutes, approval_mode")
+    .select("id, name, reward_minutes, approval_mode, frequency")
     .eq("id", choreId)
     .single();
   if (!chore) return;
+
+  const tz = await familyTimezone(supabase, familyId);
+  // Daily/weekly chores can only be logged once per period.
+  if (chore.frequency === "daily" || chore.frequency === "weekly") {
+    const done = await doneChoreIdsThisPeriod(
+      supabase,
+      childId,
+      [{ id: chore.id, frequency: chore.frequency }],
+      tz,
+    );
+    if (done.has(chore.id)) return;
+  }
 
   const { data: completion } = await supabase
     .from("chore_completions")
@@ -145,6 +159,7 @@ export async function markChoreDone(formData: FormData) {
       note: chore.name,
       verdict,
     });
+    await awardStreaksAndBadges(supabase, { childId, familyId, tz });
   } else if (verdict) {
     await supabase.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
   }
@@ -176,6 +191,11 @@ export async function approveCompletion(formData: FormData) {
     minutes: chore?.reward_minutes ?? 0,
     status: "approved",
     decidedBy: user.id,
+  });
+  await awardStreaksAndBadges(supabase, {
+    childId: c.child_id,
+    familyId,
+    tz: await familyTimezone(supabase, familyId),
   });
   revalidatePath("/dashboard/approvals");
   revalidatePath("/dashboard");
