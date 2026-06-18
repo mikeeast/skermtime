@@ -24,16 +24,22 @@ const APPROVAL_LABEL: Record<string, string> = {
 const stepBtn =
   "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:bg-muted active:scale-95 disabled:opacity-40";
 
+// Snap to the nearest grid value in the stepped direction (so values stay clean
+// multiples of `step` — 15-min quarters for screen time, 5-min for effort).
+function snap(value: number, step: number, dir: number): number {
+  return dir > 0
+    ? (Math.floor(value / step) + 1) * step
+    : Math.max(0, (Math.ceil(value / step) - 1) * step);
+}
+
 function Stepper({
   value,
-  step,
-  onChange,
+  onStep,
   label,
   ariaLabel,
 }: {
   value: number;
-  step: number;
-  onChange: (next: number) => void;
+  onStep: (dir: 1 | -1) => void;
   label: string;
   ariaLabel: string;
 }) {
@@ -43,7 +49,7 @@ function Stepper({
         type="button"
         aria-label={`Minska ${ariaLabel}`}
         disabled={value <= 0}
-        onClick={() => onChange(value - step)}
+        onClick={() => onStep(-1)}
         className={stepBtn}
       >
         <Minus size={15} />
@@ -52,7 +58,7 @@ function Stepper({
       <button
         type="button"
         aria-label={`Öka ${ariaLabel}`}
-        onClick={() => onChange(value + step)}
+        onClick={() => onStep(1)}
         className={stepBtn}
       >
         <Plus size={15} />
@@ -72,7 +78,7 @@ export function ChoreCard({
   const [reward, setReward] = useState(chore.reward_minutes);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-save (debounced) — no explicit save button.
+  // Auto-save (debounced) — keeps only the latest value.
   function persist(d: number, r: number) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -84,13 +90,13 @@ export function ChoreCard({
     }, 500);
   }
 
-  function changeDuration(next: number) {
-    const v = Math.max(0, next);
+  function stepDuration(dir: 1 | -1) {
+    const v = snap(duration, 5, dir);
     setDuration(v);
     persist(v, reward);
   }
-  function changeReward(next: number) {
-    const v = Math.max(0, next);
+  function stepReward(dir: 1 | -1) {
+    const v = snap(reward, 15, dir);
     setReward(v);
     persist(duration, v);
   }
@@ -120,16 +126,14 @@ export function ChoreCard({
         <span className="text-muted-foreground">⏱ utför</span>
         <Stepper
           value={duration}
-          step={5}
-          onChange={changeDuration}
+          onStep={stepDuration}
           label={`${duration} min`}
           ariaLabel="utförandetid"
         />
         <span className="text-muted-foreground">→ 🎮</span>
         <Stepper
           value={reward}
-          step={15}
-          onChange={changeReward}
+          onStep={stepReward}
           label={formatMinutes(reward)}
           ariaLabel="skärmtid"
         />
