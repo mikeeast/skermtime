@@ -94,6 +94,14 @@ export default function LoginPage() {
       )}
 
       {error && <p className="text-center text-sm text-red-500">{error}</p>}
+
+      <p className="text-center text-xs text-muted-foreground">
+        Är du barn?{" "}
+        <a href="/barn" className="underline">
+          Logga in här
+        </a>
+        .
+      </p>
     </main>
   );
 }

@@ -37,7 +37,7 @@ export default async function ChildPage({ params }: { params: Promise<{ id: stri
 
   const { data: child } = await supabase
     .from("child_profiles")
-    .select("id, alias, icon, balance_minutes, family_id")
+    .select("id, alias, icon, balance_minutes, family_id, login_code")
     .eq("id", id)
     .single();
   if (!child) notFound();
@@ -79,6 +79,7 @@ export default async function ChildPage({ params }: { params: Promise<{ id: stri
         childId={child.id}
         alias={child.alias}
         icon={child.icon}
+        loginCode={child.login_code}
         initialBalance={child.balance_minutes}
         initialLedger={(ledgerRes.data ?? []) as LedgerEntry[]}
         initialDevices={(devicesRes.data ?? []) as DeviceRow[]}

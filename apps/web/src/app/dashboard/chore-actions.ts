@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { aiConfigured, decideFromVerdict, verifyChorePhotos } from "@/lib/ai/verifyChore";
+import { hashPin } from "@/lib/child/session";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -275,5 +276,18 @@ export async function awardBounty(formData: FormData) {
     bonus_awarded: true,
     writeup,
   });
+  revalidatePath(`/dashboard/child/${childId}`);
+}
+
+export async function setChildPin(formData: FormData) {
+  const childId = String(formData.get("childId") ?? "");
+  const pin = String(formData.get("pin") ?? "").trim();
+  if (!childId || pin.length < 4) return;
+  const { supabase, familyId } = await ctx();
+  await supabase
+    .from("child_profiles")
+    .update({ pin_hash: hashPin(pin) })
+    .eq("id", childId)
+    .eq("family_id", familyId);
   revalidatePath(`/dashboard/child/${childId}`);
 }

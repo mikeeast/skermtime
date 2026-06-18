@@ -2,7 +2,7 @@
 
 import { useOptimistic, useRef, useState } from "react";
 import Link from "next/link";
-import { adjustBalance, awardBounty, markChoreDone } from "../../chore-actions";
+import { adjustBalance, awardBounty, markChoreDone, setChildPin } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
 import { formatMinutes } from "@/lib/earning/format";
 
@@ -47,6 +47,7 @@ export function ChildPanel({
   childId,
   alias,
   icon,
+  loginCode,
   initialBalance,
   initialLedger,
   initialDevices,
@@ -55,6 +56,7 @@ export function ChildPanel({
   childId: string;
   alias: string;
   icon: string | null;
+  loginCode: string;
   initialBalance: number;
   initialLedger: LedgerEntry[];
   initialDevices: DeviceRow[];
@@ -237,6 +239,33 @@ export function ChildPanel({
             Ge bonus
           </button>
         </form>
+      </section>
+
+      <section className="mt-8 rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="text-sm font-semibold">Barnets inloggning</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {alias} loggar in på <span className="font-medium">/barn</span> med koden nedan och sin
+          PIN.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <span className="rounded-lg bg-muted px-3 py-1 font-mono text-lg font-semibold tracking-widest">
+            {loginCode}
+          </span>
+          <form action={setChildPin} className="flex items-center gap-2">
+            <input type="hidden" name="childId" value={childId} />
+            <input
+              name="pin"
+              type="password"
+              inputMode="numeric"
+              minLength={4}
+              placeholder="Ny PIN (min 4)"
+              className="h-9 w-36 rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40"
+            />
+            <button className="h-9 rounded-lg bg-foreground px-3 text-sm font-medium text-background transition hover:opacity-90">
+              Sätt PIN
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="mt-8">
