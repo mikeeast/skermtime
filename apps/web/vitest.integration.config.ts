@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Integration tests hit the running dev server + local Supabase.
@@ -9,5 +10,9 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false,
+  },
+  resolve: {
+    // Mirror the tsconfig `@/*` path alias so test imports resolve.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
 });

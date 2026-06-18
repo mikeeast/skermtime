@@ -1,8 +1,9 @@
 "use client";
 
-import { useOptimistic, useState } from "react";
+import { useOptimistic, useRef, useState } from "react";
 import { logChore } from "../actions";
 import { formatMinutes } from "@/lib/earning/format";
+import { compressImage } from "@/lib/image/compress";
 import { Mascot } from "@/components/mascot";
 
 type ChoreOpt = {
@@ -43,6 +44,14 @@ export function ChildHome({
   const [balance, addBalance] = useOptimistic(initialBalance, (b: number, delta: number) => b + delta);
   const [flash, setFlash] = useState<string | null>(null);
 
+  // AI-photo capture state.
+  const [aiChore, setAiChore] = useState<ChoreOpt | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [reviewMsg, setReviewMsg] = useState<string | null>(null);
+  const beforeRef = useRef<HTMLInputElement>(null);
+  const afterRef = useRef<HTMLInputElement>(null);
+
   async function onDo(c: ChoreOpt) {
     if (c.approval_mode === "auto") addBalance(c.reward_minutes);
     setFlash(c.id);
@@ -50,6 +59,52 @@ export function ChildHome({
     const fd = new FormData();
     fd.set("choreId", c.id);
     await logChore(fd);
+  }
+
+  async function uploadPhoto(file: File, slot: "before" | "after", completionId: string) {
+    const blob = await compressImage(file);
+    const fd = new FormData();
+    fd.set("file", new File([blob], `${slot}.jpg`, { type: "image/jpeg" }));
+    fd.set("slot", slot);
+    fd.set("completionId", completionId);
+    const res = await fetch("/api/barn/chore-photo", { method: "POST", body: fd });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { path?: string };
+    return json.path ?? null;
+  }
+
+  async function submitAiChore() {
+    const c = aiChore;
+    if (!c) return;
+    const afterFile = afterRef.current?.files?.[0];
+    if (!afterFile) {
+      setPhotoError("Ta en bild på resultatet först.");
+      return;
+    }
+    const beforeFile = beforeRef.current?.files?.[0] ?? null;
+    setUploading(true);
+    setPhotoError(null);
+    try {
+      const completionId = crypto.randomUUID();
+      const afterPath = await uploadPhoto(afterFile, "after", completionId);
+      if (!afterPath) throw new Error("upload");
+      const beforePath = beforeFile ? await uploadPhoto(beforeFile, "before", completionId) : null;
+
+      const fd = new FormData();
+      fd.set("choreId", c.id);
+      fd.set("completionId", completionId);
+      if (beforePath) fd.set("beforeUrl", beforePath);
+      fd.set("afterUrl", afterPath);
+      await logChore(fd);
+
+      setReviewMsg(`📷 ${c.name} skickad för granskning!`);
+      setTimeout(() => setReviewMsg(null), 4000);
+      setAiChore(null);
+    } catch {
+      setPhotoError("Kunde inte ladda upp bilden — försök igen.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -71,31 +126,54 @@ export function ChildHome({
         <p className="mt-1 text-sm text-muted-foreground">
           Tryck när du gjort något — så tjänar du tid!
         </p>
+        {reviewMsg && (
+          <p className="mt-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            {reviewMsg}
+          </p>
+        )}
         {chores.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">Inga sysslor än.</p>
         ) : (
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {chores.map((c) => (
-              <form key={c.id} action={() => onDo(c)}>
+            {chores.map((c) =>
+              c.approval_mode === "ai" ? (
                 <button
-                  type="submit"
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setPhotoError(null);
+                    setAiChore(c);
+                  }}
                   className="flex w-full flex-col items-center gap-1 rounded-2xl border border-border bg-card p-4 text-center transition hover:bg-muted active:scale-95"
                 >
                   <span className="text-3xl">{c.icon ?? "✅"}</span>
                   <span className="text-sm font-medium">{c.name}</span>
-                  {flash === c.id ? (
-                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      ✓ Bra jobbat!
-                    </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      🎮 {formatMinutes(c.reward_minutes)}
-                      {c.approval_mode !== "auto" ? " · väntar ok" : ""}
-                    </span>
-                  )}
+                  <span className="text-xs text-muted-foreground">
+                    📷 {formatMinutes(c.reward_minutes)} · foto
+                  </span>
                 </button>
-              </form>
-            ))}
+              ) : (
+                <form key={c.id} action={() => onDo(c)}>
+                  <button
+                    type="submit"
+                    className="flex w-full flex-col items-center gap-1 rounded-2xl border border-border bg-card p-4 text-center transition hover:bg-muted active:scale-95"
+                  >
+                    <span className="text-3xl">{c.icon ?? "✅"}</span>
+                    <span className="text-sm font-medium">{c.name}</span>
+                    {flash === c.id ? (
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        ✓ Bra jobbat!
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        🎮 {formatMinutes(c.reward_minutes)}
+                        {c.approval_mode !== "auto" ? " · väntar ok" : ""}
+                      </span>
+                    )}
+                  </button>
+                </form>
+              ),
+            )}
           </div>
         )}
       </section>
@@ -125,6 +203,58 @@ export function ChildHome({
           </ul>
         )}
       </section>
+
+      {aiChore && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <h3 className="text-lg font-semibold">
+              {aiChore.icon ? `${aiChore.icon} ` : ""}
+              {aiChore.name}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ta en bild så kollar en robot att det är gjort. 📷
+            </p>
+
+            <label className="mt-4 block text-sm font-medium">Före (valfri)</label>
+            <input
+              ref={beforeRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="mt-1 block w-full text-sm"
+            />
+            <label className="mt-3 block text-sm font-medium">Efter</label>
+            <input
+              ref={afterRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="mt-1 block w-full text-sm"
+            />
+
+            {photoError && <p className="mt-2 text-sm text-red-500">{photoError}</p>}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={submitAiChore}
+                disabled={uploading}
+                className="h-11 flex-1 rounded-xl bg-primary font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+              >
+                {uploading ? "Laddar upp…" : "Skicka för granskning"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiChore(null)}
+                disabled={uploading}
+                className="h-11 rounded-xl border border-border px-4 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+              >
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
