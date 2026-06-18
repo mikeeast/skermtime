@@ -1,14 +1,10 @@
 "use client";
 
 import { useOptimistic, useRef } from "react";
-import {
-  activateLibraryChore,
-  createChore,
-  deleteChore,
-  markChoreDone,
-  setChoreReward,
-} from "../chore-actions";
+import { Check, Plus } from "lucide-react";
+import { activateLibraryChore, createChore, deleteChore } from "../chore-actions";
 import { formatMinutes } from "@/lib/earning/format";
+import { ChoreCard } from "./chore-card";
 
 type Chore = {
   id: string;
@@ -21,19 +17,7 @@ type Chore = {
 };
 type Child = { id: string; alias: string };
 
-const APPROVAL_LABEL: Record<string, string> = {
-  auto: "auto",
-  parent: "förälder",
-  ai: "AI-foto",
-};
-
-type Action =
-  | { type: "add"; chore: Chore }
-  | { type: "remove"; id: string }
-  | { type: "update"; id: string; reward: number; duration: number };
-
-const inputCls =
-  "h-8 rounded-lg border border-border bg-card px-2 text-right outline-none focus:ring-2 focus:ring-ring/40";
+type Action = { type: "add"; chore: Chore } | { type: "remove"; id: string };
 
 export function ChoresManager({
   initialFamily,
@@ -44,19 +28,9 @@ export function ChoresManager({
   library: Chore[];
   kids: Child[];
 }) {
-  const [chores, dispatch] = useOptimistic(initialFamily, (state: Chore[], a: Action) => {
-    switch (a.type) {
-      case "add":
-        return [...state, a.chore];
-      case "remove":
-        return state.filter((c) => c.id !== a.id);
-      case "update":
-        return state.map((c) =>
-          c.id === a.id ? { ...c, reward_minutes: a.reward, duration_minutes: a.duration } : c,
-        );
-    }
-  });
-  const [marked, addMarked] = useOptimistic<string[], string>([], (s, id) => [...s, id]);
+  const [chores, dispatch] = useOptimistic(initialFamily, (state: Chore[], a: Action) =>
+    a.type === "add" ? [...state, a.chore] : state.filter((c) => c.id !== a.id),
+  );
   const createRef = useRef<HTMLFormElement>(null);
 
   const activeKey = new Set(chores.map((c) => `${c.category}|${c.name}`));
@@ -91,31 +65,11 @@ export function ChoresManager({
     await activateLibraryChore(fd);
   }
 
-  async function onUpdate(formData: FormData) {
-    const id = String(formData.get("choreId") ?? "");
-    const reward = Number(formData.get("reward"));
-    const duration = Number(formData.get("duration"));
-    if (id && Number.isFinite(reward) && Number.isFinite(duration)) {
-      dispatch({
-        type: "update",
-        id,
-        reward: Math.max(0, Math.trunc(reward)),
-        duration: Math.max(0, Math.trunc(duration)),
-      });
-    }
-    await setChoreReward(formData);
-  }
-
   async function onDelete(id: string) {
     dispatch({ type: "remove", id });
     const fd = new FormData();
     fd.set("choreId", id);
     await deleteChore(fd);
-  }
-
-  async function onMarkDone(formData: FormData) {
-    addMarked(String(formData.get("choreId") ?? ""));
-    await markChoreDone(formData);
   }
 
   return (
@@ -129,77 +83,7 @@ export function ChoresManager({
         ) : (
           <ul className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {chores.map((c) => (
-              <li
-                key={c.id}
-                className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">
-                    {c.icon ? `${c.icon} ` : ""}
-                    {c.name}
-                  </span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                    {c.category} · {APPROVAL_LABEL[c.approval_mode] ?? c.approval_mode}
-                  </span>
-                  {marked.includes(c.id) && (
-                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                      ✓ Skickad!
-                    </span>
-                  )}
-                </div>
-
-                <form action={onUpdate} className="flex flex-wrap items-center gap-2 text-sm">
-                  <input type="hidden" name="choreId" value={c.id} />
-                  <span className="text-muted-foreground">⏱ utför</span>
-                  <input
-                    name="duration"
-                    type="number"
-                    min={0}
-                    defaultValue={c.duration_minutes}
-                    key={`d${c.duration_minutes}`}
-                    className={`${inputCls} w-16`}
-                  />
-                  <span className="text-muted-foreground">min → 🎮</span>
-                  <input
-                    name="reward"
-                    type="number"
-                    min={0}
-                    defaultValue={c.reward_minutes}
-                    key={`r${c.reward_minutes}`}
-                    className={`${inputCls} w-20`}
-                  />
-                  <span className="text-muted-foreground">min ({formatMinutes(c.reward_minutes)})</span>
-                  <button className="h-8 rounded-lg bg-foreground px-3 text-xs font-medium text-background transition hover:opacity-90">
-                    Spara
-                  </button>
-                </form>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {kids.length > 0 && (
-                    <form action={onMarkDone} className="flex items-center gap-1">
-                      <input type="hidden" name="choreId" value={c.id} />
-                      <select
-                        name="childId"
-                        className="h-8 rounded-lg border border-border bg-card px-1 text-sm outline-none focus:ring-2 focus:ring-ring/40"
-                      >
-                        {kids.map((k) => (
-                          <option key={k.id} value={k.id}>
-                            {k.alias}
-                          </option>
-                        ))}
-                      </select>
-                      <button className="h-8 rounded-lg bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700">
-                        Klar ✓
-                      </button>
-                    </form>
-                  )}
-                  <form action={() => onDelete(c.id)} className="ml-auto">
-                    <button className="h-8 px-1 text-xs text-muted-foreground transition hover:text-red-500">
-                      Ta bort
-                    </button>
-                  </form>
-                </div>
-              </li>
+              <ChoreCard key={c.id} chore={c} kids={kids} onDelete={onDelete} />
             ))}
           </ul>
         )}
@@ -229,6 +113,7 @@ export function ChoresManager({
             <input
               name="duration"
               type="number"
+              inputMode="numeric"
               min={0}
               defaultValue={10}
               className="mt-1 h-9 w-24 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
@@ -239,6 +124,7 @@ export function ChoresManager({
             <input
               name="reward"
               type="number"
+              inputMode="numeric"
               min={0}
               defaultValue={30}
               className="mt-1 h-9 w-24 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring/40"
@@ -284,9 +170,14 @@ export function ChoresManager({
                 <form action={() => onActivate(c)} className="ml-auto">
                   <button
                     disabled={already}
-                    className="rounded-lg bg-foreground px-2 py-1 text-xs font-medium text-background transition hover:opacity-90 disabled:bg-muted disabled:text-muted-foreground"
+                    aria-label={already ? "Redan tillagd" : "Lägg till i familjen"}
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition ${
+                      already
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-foreground text-background hover:opacity-90"
+                    }`}
                   >
-                    {already ? "Tillagd" : "Lägg till"}
+                    {already ? <Check size={16} /> : <Plus size={16} />}
                   </button>
                 </form>
               </li>
