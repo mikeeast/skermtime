@@ -26,8 +26,20 @@ export default async function ChoresPage() {
 
   const sel = "id, category, name, icon, reward_minutes, duration_minutes, approval_mode";
   const [familyChoresRes, libraryRes] = await Promise.all([
-    supabase.from("chores").select(sel).eq("family_id", family.id).order("category"),
-    supabase.from("chores").select(sel).is("family_id", null).order("category"),
+    supabase
+      .from("chores")
+      .select(sel)
+      .eq("family_id", family.id)
+      .order("category")
+      .order("created_at")
+      .order("id"),
+    supabase
+      .from("chores")
+      .select(sel)
+      .is("family_id", null)
+      .order("category")
+      .order("name")
+      .order("id"),
   ]);
 
   return (

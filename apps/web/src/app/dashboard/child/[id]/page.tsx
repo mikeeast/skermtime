@@ -59,7 +59,9 @@ export default async function ChildPage({ params }: { params: Promise<{ id: stri
       .select("id, name, icon, reward_minutes, approval_mode")
       .eq("family_id", child.family_id)
       .eq("active", true)
-      .order("category"),
+      .order("category")
+      .order("created_at")
+      .order("id"),
   ]);
 
   return (
