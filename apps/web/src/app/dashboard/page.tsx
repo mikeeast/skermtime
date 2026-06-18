@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { addChild, createFamily, signOut } from "./actions";
+import { signOut } from "./actions";
+import { Children } from "./children";
+import { CreateFamily } from "./create-family";
 
 type Child = {
   id: string;
@@ -48,17 +50,7 @@ export default async function DashboardPage() {
           <p className="mt-1 text-sm text-gray-500">
             Första steget — sedan kan du lägga till barn.
           </p>
-          <form action={createFamily} className="mt-4 flex gap-3">
-            <input
-              name="name"
-              required
-              placeholder="Familjenamn"
-              className="h-11 flex-1 rounded-lg border border-gray-300 px-3"
-            />
-            <button className="h-11 rounded-lg bg-black px-5 font-medium text-white">
-              Skapa
-            </button>
-          </form>
+          <CreateFamily />
         </section>
       ) : (
         <section className="flex flex-col gap-6">
@@ -85,48 +77,11 @@ export default async function DashboardPage() {
           <div>
             <h2 className="text-lg font-semibold">{family.name}</h2>
             <p className="text-sm text-gray-500">
-              Provperiod till{" "}
-              {new Date(family.trial_ends_at).toLocaleDateString("sv-SE")}
+              Provperiod till {new Date(family.trial_ends_at).toLocaleDateString("sv-SE")}
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            {children.length === 0 ? (
-              <p className="text-sm text-gray-500">Inga barn tillagda än.</p>
-            ) : (
-              children.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/dashboard/child/${c.id}`}
-                  className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:bg-gray-50"
-                >
-                  <span className="font-medium">
-                    {c.icon ? `${c.icon} ` : ""}
-                    {c.alias}
-                  </span>
-                  <span className="text-sm text-gray-500">{c.balance_minutes} min</span>
-                </Link>
-              ))
-            )}
-          </div>
-
-          <form action={addChild} className="flex gap-3">
-            <input
-              name="icon"
-              placeholder="🙂"
-              maxLength={2}
-              className="h-11 w-14 rounded-lg border border-gray-300 text-center"
-            />
-            <input
-              name="alias"
-              required
-              placeholder="Barnets alias"
-              className="h-11 flex-1 rounded-lg border border-gray-300 px-3"
-            />
-            <button className="h-11 rounded-lg bg-black px-5 font-medium text-white">
-              Lägg till
-            </button>
-          </form>
+          <Children initial={children} />
         </section>
       )}
     </main>
