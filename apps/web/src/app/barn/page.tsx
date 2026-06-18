@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getChildId } from "@/lib/child/server";
 import { childLogin } from "./actions";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Mascot } from "@/components/mascot";
 
 export default async function BarnLogin({
   searchParams,
@@ -18,7 +19,7 @@ export default async function BarnLogin({
       </div>
 
       <div className="text-center">
-        <div className="text-5xl">🎮</div>
+        <Mascot className="mx-auto h-28 w-28" />
         <h1 className="mt-2 text-3xl font-bold">Skermtime</h1>
         <p className="mt-2 text-sm text-muted-foreground">Logga in med din kod och PIN.</p>
       </div>

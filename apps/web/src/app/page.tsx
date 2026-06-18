@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Mascot } from "@/components/mascot";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -16,12 +17,15 @@ export default async function Home() {
         <ThemeToggle />
       </div>
 
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Skermtime</h1>
-        <p className="mt-4 text-lg text-muted-foreground">
-          Skärmtid blir något barnet <span className="font-semibold text-foreground">tjänar</span> —
-          genom att röra på sig och hjälpa till. Inte något du tjatar om.
-        </p>
+      <div className="flex items-start gap-5">
+        <Mascot className="hidden h-28 w-28 shrink-0 sm:block" />
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Skermtime</h1>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Skärmtid blir något barnet <span className="font-semibold text-foreground">tjänar</span> —
+            genom att röra på sig och hjälpa till. Inte något du tjatar om.
+          </p>
+        </div>
       </div>
 
       <ul className="flex flex-col gap-3 text-foreground/80">

@@ -3,6 +3,7 @@
 import { useOptimistic, useState } from "react";
 import { logChore } from "../actions";
 import { formatMinutes } from "@/lib/earning/format";
+import { Mascot } from "@/components/mascot";
 
 type ChoreOpt = {
   id: string;
@@ -51,9 +52,12 @@ export function ChildHome({
 
   return (
     <>
-      <section className="rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
-        <p className="text-sm text-muted-foreground">Din skärmtid</p>
-        <p className="mt-1 text-5xl font-bold tabular-nums">{formatMinutes(balance)}</p>
+      <section className="flex items-center justify-center gap-4 rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
+        <Mascot className="h-20 w-20 shrink-0" />
+        <div>
+          <p className="text-sm text-muted-foreground">Din skärmtid</p>
+          <p className="mt-1 text-5xl font-bold tabular-nums">{formatMinutes(balance)}</p>
+        </div>
       </section>
 
       <section className="mt-8">
