@@ -10,6 +10,7 @@ import {
 } from "@/lib/earning/strava";
 import { DEFAULT_TIMEZONE } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { awardGroupRunBonuses, clawbackGroupBonus } from "@/lib/earning/group";
 
 // Strava subscription validation handshake.
 export async function GET(request: Request) {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
         note: "Strava-runda raderad",
       });
     }
+    await clawbackGroupBonus(admin, event.object_id);
     if (act) await admin.from("strava_activities").delete().eq("id", act.id);
     return NextResponse.json({ ok: true });
   }
@@ -87,7 +89,9 @@ export async function POST(request: Request) {
 
   const { data: fam } = await admin
     .from("families")
-    .select("strava_minutes_per_km, daily_cap_minutes, timezone")
+    .select(
+      "strava_minutes_per_km, daily_cap_minutes, timezone, group_bonus_enabled, group_bonus_pct_per_peer, group_bonus_cap_pct",
+    )
     .eq("id", conn.family_id)
     .single();
 
@@ -157,6 +161,22 @@ export async function POST(request: Request) {
       familyId: conn.family_id,
       tz: fam?.timezone ?? DEFAULT_TIMEZONE,
     });
+    await awardGroupRunBonuses(
+      admin,
+      {
+        strava_activity_id: event.object_id,
+        child_id: conn.child_id,
+        family_id: conn.family_id,
+        started_at: activity.start_date,
+        moving_time_s: activity.moving_time,
+        minutes_awarded: minutes,
+      },
+      {
+        enabled: fam?.group_bonus_enabled ?? true,
+        perPeerPct: fam?.group_bonus_pct_per_peer ?? 10,
+        capPct: fam?.group_bonus_cap_pct ?? 50,
+      },
+    );
   }
 
   return NextResponse.json({ ok: true });

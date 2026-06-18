@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getChildId } from "@/lib/child/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
@@ -76,6 +77,12 @@ export default async function BarnStart() {
           {child.alias}
         </span>
         <div className="flex items-center gap-3">
+          <Link
+            href="/barn/kompisar"
+            className="text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            Kompisar
+          </Link>
           <ThemeToggle />
           <form action={childLogout}>
             <button className="text-sm text-muted-foreground transition hover:text-foreground">
