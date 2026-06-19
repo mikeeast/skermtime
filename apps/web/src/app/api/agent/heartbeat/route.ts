@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { authDevice } from "@/lib/agent/auth";
+import { DEFAULT_TIMEZONE, localClock } from "@/lib/earning/period";
+import { evaluateSchedule, type LockWindow } from "@/lib/agent/policy";
 
 // Agent reports consumed minutes and gets the current balance + lock policy back.
 export async function POST(request: Request) {
@@ -23,15 +25,57 @@ export async function POST(request: Request) {
   }
   await admin.from("devices").update({ last_seen_at: new Date().toISOString() }).eq("id", device.id);
 
-  const { data: child } = await admin
-    .from("child_profiles")
-    .select("balance_minutes")
-    .eq("id", device.child_id)
-    .single();
+  const [childRes, famRes, scheduleRes] = await Promise.all([
+    admin
+      .from("child_profiles")
+      .select("balance_minutes, daily_screen_cap_minutes")
+      .eq("id", device.child_id)
+      .single(),
+    admin.from("families").select("timezone").eq("id", device.family_id).single(),
+    admin
+      .from("lock_schedules")
+      .select("days, start_min, end_min")
+      .eq("child_id", device.child_id)
+      .eq("enabled", true),
+  ]);
+
+  const tz = famRes.data?.timezone ?? DEFAULT_TIMEZONE;
+  const now = new Date();
+  const { dow, minute } = localClock(now, tz);
+  const windows: LockWindow[] = (scheduleRes.data ?? []).map((s) => ({
+    startMin: s.start_min as number,
+    endMin: s.end_min as number,
+    days: (s.days as number[]) ?? [],
+  }));
+  const sched = evaluateSchedule(windows, dow, minute);
+
+  // Daily screen-time cap: sum today's spend since local midnight.
+  let dailyCapReached = false;
+  const cap = childRes.data?.daily_screen_cap_minutes as number | null | undefined;
+  if (cap != null) {
+    const midnight = new Date(now.getTime() - minute * 60_000).toISOString();
+    const { data: spent } = await admin
+      .from("ledger_entries")
+      .select("delta_minutes")
+      .eq("child_id", device.child_id)
+      .eq("kind", "spend")
+      .gte("created_at", midnight);
+    const usedToday = (spent ?? []).reduce((s, r) => s + Math.abs(r.delta_minutes ?? 0), 0);
+    if (usedToday >= cap) dailyCapReached = true;
+  }
+
+  const lockNow = sched.inWindow || dailyCapReached;
+  const reason = sched.inWindow ? "bedtime" : dailyCapReached ? "daily_cap" : null;
 
   return NextResponse.json({
-    balanceMinutes: child?.balance_minutes ?? 0,
+    balanceMinutes: childRes.data?.balance_minutes ?? 0,
     warnAtMinutes: [10, 5, 1],
     lockAtMinutes: 0,
+    lockNow,
+    reason,
+    minutesUntilWindow: sched.minutesUntilWindow,
+    scheduleWindows: windows.map((w) => ({ startMin: w.startMin, endMin: w.endMin, days: w.days })),
+    serverLocalDow: dow,
+    serverLocalMinute: minute,
   });
 }

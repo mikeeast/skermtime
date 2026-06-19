@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -7,5 +8,9 @@ export default defineConfig({
     // Integration tests that need the local Supabase stack live under tests/integration
     // and are run with `pnpm test:integration`.
     exclude: ["tests/integration/**", "node_modules/**"],
+  },
+  resolve: {
+    // Mirror the tsconfig `@/*` path alias so test imports resolve.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
 });

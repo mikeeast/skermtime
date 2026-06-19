@@ -6,6 +6,11 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signChildToken, verifyPin } from "@/lib/child/session";
 import { CHILD_COOKIE, getChildId } from "@/lib/child/server";
+import { aiConfigured } from "@/lib/ai/verifyChore";
+import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
+import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
+import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { notifyApprovalPending } from "@/lib/notify/emit";
 
 export async function childLogin(formData: FormData) {
   const code = String(formData.get("code") ?? "")
@@ -45,6 +50,9 @@ export async function logChore(formData: FormData) {
   if (!childId) redirect("/barn");
   const choreId = String(formData.get("choreId") ?? "");
   if (!choreId) return;
+  const completionId = String(formData.get("completionId") ?? "") || undefined;
+  const beforePath = String(formData.get("beforeUrl") ?? "") || null;
+  const afterPath = String(formData.get("afterUrl") ?? "") || null;
 
   const admin = createAdminClient();
   const { data: child } = await admin
@@ -56,47 +64,79 @@ export async function logChore(formData: FormData) {
 
   const { data: chore } = await admin
     .from("chores")
-    .select("id, name, reward_minutes, approval_mode, family_id, active")
+    .select("id, name, reward_minutes, approval_mode, frequency, family_id, active")
     .eq("id", choreId)
     .single();
   if (!chore || chore.family_id !== child.family_id || !chore.active) return;
 
+  const tz = await familyTimezone(admin, chore.family_id);
+  // Daily/weekly chores can only be logged once per period.
+  if (chore.frequency === "daily" || chore.frequency === "weekly") {
+    const done = await doneChoreIdsThisPeriod(
+      admin,
+      childId,
+      [{ id: chore.id, frequency: chore.frequency }],
+      tz,
+    );
+    if (done.has(chore.id)) {
+      revalidatePath("/barn/start");
+      return;
+    }
+  }
+
   const { data: completion } = await admin
     .from("chore_completions")
     .insert({
+      ...(completionId ? { id: completionId } : {}),
       family_id: chore.family_id,
       chore_id: chore.id,
       child_id: childId,
       status: "pending",
+      photo_before: beforePath,
+      photo_after: afterPath,
     })
     .select("id")
     .single();
   if (!completion) return;
 
-  // Auto-approved chores credit immediately; others wait for a parent in /dashboard/approvals.
+  let decision: "auto_approved" | "ai_approved" | "parent" = "parent";
+  let verdict: unknown = null;
+
   if (chore.approval_mode === "auto") {
-    const { data: entry } = await admin
-      .from("ledger_entries")
-      .insert({
-        family_id: chore.family_id,
-        child_id: childId,
-        delta_minutes: chore.reward_minutes,
-        kind: "earn_chore",
-        source_type: "chore_completion",
-        source_id: completion.id,
-        note: chore.name,
-      })
-      .select("id")
-      .single();
-    await admin
-      .from("chore_completions")
-      .update({
-        status: "auto_approved",
-        minutes_awarded: chore.reward_minutes,
-        ledger_entry_id: entry?.id ?? null,
-        decided_at: new Date().toISOString(),
-      })
-      .eq("id", completion.id);
+    decision = "auto_approved";
+  } else if (afterPath && shouldRunAi(chore.approval_mode, true, aiConfigured())) {
+    const res = await runAiDecision(admin, {
+      choreName: chore.name,
+      beforePath,
+      afterPath,
+    });
+    decision = res.decision;
+    verdict = res.verdict;
+  }
+
+  // Auto/AI-approved chores credit immediately; others wait for a parent in /dashboard/approvals.
+  if (decision === "auto_approved" || decision === "ai_approved") {
+    await creditCompletion(admin, {
+      familyId: chore.family_id,
+      childId,
+      completionId: completion.id,
+      minutes: chore.reward_minutes,
+      status: decision,
+      note: chore.name,
+      verdict,
+    });
+    await awardStreaksAndBadges(admin, { childId, familyId: chore.family_id, tz });
+  } else if (verdict) {
+    await admin.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
+  }
+
+  if (decision === "parent") {
+    void notifyApprovalPending(admin, {
+      familyId: chore.family_id,
+      childId,
+      completionId: completion.id,
+      choreName: chore.name,
+    });
   }
 
   revalidatePath("/barn/start");

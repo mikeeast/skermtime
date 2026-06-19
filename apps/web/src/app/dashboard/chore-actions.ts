@@ -3,10 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { aiConfigured, decideFromVerdict, verifyChorePhotos } from "@/lib/ai/verifyChore";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { aiConfigured } from "@/lib/ai/verifyChore";
+import { creditCompletion, runAiDecision, shouldRunAi } from "@/lib/chore/complete";
+import { doneChoreIdsThisPeriod, familyTimezone } from "@/lib/earning/period";
+import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { notifyApprovalPending } from "@/lib/notify/emit";
+import { getActiveFamilyId } from "@/lib/family/server";
 import { hashPin } from "@/lib/child/session";
-
-type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
 async function ctx() {
   const supabase = await createClient();
@@ -14,48 +18,9 @@ async function ctx() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data } = await supabase.from("families").select("id").limit(1);
-  const familyId = data?.[0]?.id as string | undefined;
+  const familyId = await getActiveFamilyId(supabase);
   if (!familyId) redirect("/dashboard");
   return { supabase, user, familyId };
-}
-
-/** Insert an earn ledger entry and finalize the completion. Balance updates via DB trigger. */
-async function creditCompletion(
-  supabase: ServerClient,
-  familyId: string,
-  childId: string,
-  completionId: string,
-  minutes: number,
-  status: "approved" | "auto_approved" | "ai_approved",
-  decidedBy: string,
-  verdict: unknown,
-) {
-  const { data: entry } = await supabase
-    .from("ledger_entries")
-    .insert({
-      family_id: familyId,
-      child_id: childId,
-      delta_minutes: minutes,
-      kind: "earn_chore",
-      source_type: "chore_completion",
-      source_id: completionId,
-      created_by: decidedBy,
-    })
-    .select("id")
-    .single();
-
-  await supabase
-    .from("chore_completions")
-    .update({
-      status,
-      minutes_awarded: minutes,
-      ledger_entry_id: entry?.id ?? null,
-      decided_by: decidedBy,
-      decided_at: new Date().toISOString(),
-      ai_verdict: verdict ?? null,
-    })
-    .eq("id", completionId);
 }
 
 export async function activateLibraryChore(formData: FormData) {
@@ -130,17 +95,29 @@ export async function deleteChore(formData: FormData) {
 export async function markChoreDone(formData: FormData) {
   const choreId = String(formData.get("choreId") ?? "");
   const childId = String(formData.get("childId") ?? "");
-  const beforeUrl = String(formData.get("beforeUrl") ?? "") || null;
-  const afterUrl = String(formData.get("afterUrl") ?? "") || null;
+  const beforePath = String(formData.get("beforeUrl") ?? "") || null;
+  const afterPath = String(formData.get("afterUrl") ?? "") || null;
   if (!choreId || !childId) return;
 
   const { supabase, user, familyId } = await ctx();
   const { data: chore } = await supabase
     .from("chores")
-    .select("id, name, reward_minutes, approval_mode")
+    .select("id, name, reward_minutes, approval_mode, frequency")
     .eq("id", choreId)
     .single();
   if (!chore) return;
+
+  const tz = await familyTimezone(supabase, familyId);
+  // Daily/weekly chores can only be logged once per period.
+  if (chore.frequency === "daily" || chore.frequency === "weekly") {
+    const done = await doneChoreIdsThisPeriod(
+      supabase,
+      childId,
+      [{ id: chore.id, frequency: chore.frequency }],
+      tz,
+    );
+    if (done.has(chore.id)) return;
+  }
 
   const { data: completion } = await supabase
     .from("chore_completions")
@@ -149,8 +126,8 @@ export async function markChoreDone(formData: FormData) {
       chore_id: chore.id,
       child_id: childId,
       status: "pending",
-      photo_before: beforeUrl,
-      photo_after: afterUrl,
+      photo_before: beforePath,
+      photo_after: afterPath,
     })
     .select("id")
     .single();
@@ -161,29 +138,40 @@ export async function markChoreDone(formData: FormData) {
 
   if (chore.approval_mode === "auto") {
     decision = "auto_approved";
-  } else if (chore.approval_mode === "ai" && afterUrl && aiConfigured()) {
-    try {
-      const v = await verifyChorePhotos({ choreName: chore.name, beforeUrl, afterUrl });
-      verdict = v;
-      decision = decideFromVerdict(v);
-    } catch {
-      decision = "parent"; // fall back to manual approval on any AI error
-    }
+  } else if (afterPath && shouldRunAi(chore.approval_mode, true, aiConfigured())) {
+    // Sign the private bucket with the admin client (storage RLS is deny-all for clients).
+    const res = await runAiDecision(createAdminClient(), {
+      choreName: chore.name,
+      beforePath,
+      afterPath,
+    });
+    decision = res.decision;
+    verdict = res.verdict;
   }
 
   if (decision === "auto_approved" || decision === "ai_approved") {
-    await creditCompletion(
-      supabase,
+    await creditCompletion(supabase, {
       familyId,
       childId,
-      completion.id,
-      chore.reward_minutes,
-      decision,
-      user.id,
+      completionId: completion.id,
+      minutes: chore.reward_minutes,
+      status: decision,
+      decidedBy: user.id,
+      note: chore.name,
       verdict,
-    );
+    });
+    await awardStreaksAndBadges(supabase, { childId, familyId, tz });
   } else if (verdict) {
     await supabase.from("chore_completions").update({ ai_verdict: verdict }).eq("id", completion.id);
+  }
+
+  if (decision === "parent") {
+    void notifyApprovalPending(createAdminClient(), {
+      familyId,
+      childId,
+      completionId: completion.id,
+      choreName: chore.name,
+    });
   }
 
   revalidatePath("/dashboard");
@@ -206,16 +194,19 @@ export async function approveCompletion(formData: FormData) {
     .select("reward_minutes")
     .eq("id", c.chore_id)
     .single();
-  await creditCompletion(
-    supabase,
+  await creditCompletion(supabase, {
     familyId,
-    c.child_id,
-    c.id,
-    chore?.reward_minutes ?? 0,
-    "approved",
-    user.id,
-    null,
-  );
+    childId: c.child_id,
+    completionId: c.id,
+    minutes: chore?.reward_minutes ?? 0,
+    status: "approved",
+    decidedBy: user.id,
+  });
+  await awardStreaksAndBadges(supabase, {
+    childId: c.child_id,
+    familyId,
+    tz: await familyTimezone(supabase, familyId),
+  });
   revalidatePath("/dashboard/approvals");
   revalidatePath("/dashboard");
 }

@@ -10,6 +10,8 @@ export type Pending = {
   chore_icon: string | null;
   reward_minutes: number;
   child_alias: string;
+  beforeUrl: string | null;
+  afterUrl: string | null;
 };
 
 export function ApprovalsList({ initial }: { initial: Pending[] }) {
@@ -42,6 +44,34 @@ export function ApprovalsList({ initial }: { initial: Pending[] }) {
               {p.child_alias} · {p.reward_minutes} min
             </span>
           </div>
+          {(p.beforeUrl || p.afterUrl) && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {p.beforeUrl && (
+                <figure>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.beforeUrl}
+                    alt="Före"
+                    loading="lazy"
+                    className="h-32 w-full rounded-lg object-cover"
+                  />
+                  <figcaption className="mt-1 text-xs text-muted-foreground">Före</figcaption>
+                </figure>
+              )}
+              {p.afterUrl && (
+                <figure>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.afterUrl}
+                    alt="Efter"
+                    loading="lazy"
+                    className="h-32 w-full rounded-lg object-cover"
+                  />
+                  <figcaption className="mt-1 text-xs text-muted-foreground">Efter</figcaption>
+                </figure>
+              )}
+            </div>
+          )}
           {p.ai_verdict && (
             <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
               AI: {p.ai_verdict.done ? "ser klar ut" : "osäker"} (
