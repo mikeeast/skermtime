@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { cronAuthorized } from "@/lib/cron/guard";
 import { DEFAULT_TIMEZONE } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
+import { completeChallengeIfDone } from "@/lib/social/challenges";
 
 export const runtime = "nodejs";
 
@@ -27,5 +28,12 @@ export async function GET(request: Request) {
       tz: tzByFam.get(c.family_id) ?? DEFAULT_TIMEZONE,
     });
   }
-  return NextResponse.json({ processed: children.length });
+
+  // Finalize/expire active challenges (catches chore-based goals + lapsed windows).
+  const { data: active } = await admin.from("challenges").select("id").eq("status", "active");
+  for (const ch of active ?? []) {
+    await completeChallengeIfDone(admin, ch.id as string);
+  }
+
+  return NextResponse.json({ processed: children.length, challenges: active?.length ?? 0 });
 }
