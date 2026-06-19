@@ -62,6 +62,8 @@ export function ChildHome({
   const [flash, setFlash] = useState<string | null>(null);
   // Locally track which recurring chores are done this period (optimistic).
   const [done, setDone] = useState<Set<string>>(() => new Set(doneChoreIds));
+  // Chores tapped this session that are awaiting parent/AI approval.
+  const [pending, setPending] = useState<Set<string>>(new Set());
 
   // AI-photo capture state.
   const [aiChore, setAiChore] = useState<ChoreOpt | null>(null);
@@ -76,10 +78,16 @@ export function ChildHome({
   }
 
   async function onDo(c: ChoreOpt) {
-    if (c.approval_mode === "auto") addBalance(c.reward_minutes);
+    if (c.approval_mode === "auto") {
+      // Instant reward: bump the balance and flash a confirmation.
+      addBalance(c.reward_minutes);
+      setFlash(c.id);
+      setTimeout(() => setFlash((cur) => (cur === c.id ? null : cur)), 2500);
+    } else {
+      // Needs a parent — show a lasting "waiting for approval" state on the tile.
+      setPending((cur) => new Set(cur).add(c.id));
+    }
     markDone(c);
-    setFlash(c.id);
-    setTimeout(() => setFlash((cur) => (cur === c.id ? null : cur)), 2000);
     const fd = new FormData();
     fd.set("choreId", c.id);
     await logChore(fd);
@@ -122,6 +130,7 @@ export function ChildHome({
       await logChore(fd);
 
       markDone(c);
+      setPending((cur) => new Set(cur).add(c.id));
       setReviewMsg(`📷 ${c.name} skickad för granskning!`);
       setTimeout(() => setReviewMsg(null), 4000);
       setAiChore(null);
@@ -178,6 +187,17 @@ export function ChildHome({
                     ✓ Klar
                   </span>
                 </div>
+              ) : pending.has(c.id) ? (
+                <div
+                  key={c.id}
+                  className="flex w-full flex-col items-center gap-1 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-center"
+                >
+                  <span className="text-3xl">{c.icon ?? "✅"}</span>
+                  <span className="text-sm font-medium">{c.name}</span>
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    ⏳ Väntar på ok
+                  </span>
+                </div>
               ) : c.approval_mode === "ai" ? (
                 <button
                   key={c.id}
@@ -204,7 +224,7 @@ export function ChildHome({
                     <span className="text-sm font-medium">{c.name}</span>
                     {flash === c.id ? (
                       <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        ✓ Bra jobbat!
+                        ✓ +{formatMinutes(c.reward_minutes)}!
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">
