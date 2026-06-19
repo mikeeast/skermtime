@@ -11,6 +11,7 @@ import {
 import { DEFAULT_TIMEZONE } from "@/lib/earning/period";
 import { awardStreaksAndBadges } from "@/lib/engagement/badges";
 import { awardGroupRunBonuses, clawbackGroupBonus } from "@/lib/earning/group";
+import { completeChallengeIfDone } from "@/lib/social/challenges";
 
 // Strava subscription validation handshake.
 export async function GET(request: Request) {
@@ -177,6 +178,15 @@ export async function POST(request: Request) {
         capPct: fam?.group_bonus_cap_pct ?? 50,
       },
     );
+
+    // Finalize any co-op challenges this child is part of.
+    const { data: memberships } = await admin
+      .from("challenge_members")
+      .select("challenge_id")
+      .eq("child_id", conn.child_id);
+    for (const m of memberships ?? []) {
+      await completeChallengeIfDone(admin, m.challenge_id as string);
+    }
   }
 
   return NextResponse.json({ ok: true });
