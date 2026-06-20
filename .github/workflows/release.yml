@@ -1,0 +1,48 @@
+name: agent-release
+
+# Cut a release by pushing a tag, e.g. `agent-v1.0.1`.
+on:
+  push:
+    tags: ["agent-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Derive version from tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#agent-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Publish service
+        run: dotnet publish apps/agent/Skermtime.Agent.csproj -c Release -r win-x64 --self-contained -o publish/service
+
+      - name: Publish overlay
+        run: dotnet publish apps/overlay/Skermtime.Overlay.csproj -c Release -r win-x64 --self-contained -o publish/overlay
+
+      # Two Velopack apps on separate channels so each updates its own files.
+      # To code-sign, add: --signTemplate "azuresigntool sign ... {{file}}"
+      # (set up Azure Trusted Signing + add the secrets it needs first).
+      - name: Pack service
+        run: vpk pack --packId Skermtime.Agent --packVersion ${{ steps.ver.outputs.version }} --packDir publish/service --mainExe Skermtime.Agent.exe --channel service --outputDir releases
+
+      - name: Pack overlay
+        run: vpk pack --packId Skermtime.Overlay --packVersion ${{ steps.ver.outputs.version }} --packDir publish/overlay --mainExe Skermtime.Overlay.exe --channel overlay --outputDir releases
+
+      - name: Upload service release
+        run: vpk upload github --repoUrl https://github.com/mikeeast/skermtime --publish --releaseName "Agent ${{ steps.ver.outputs.version }}" --tag ${{ github.ref_name }} --channel service --outputDir releases --token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload overlay release
+        run: vpk upload github --repoUrl https://github.com/mikeeast/skermtime --publish --releaseName "Agent ${{ steps.ver.outputs.version }}" --tag ${{ github.ref_name }} --channel overlay --outputDir releases --token ${{ secrets.GITHUB_TOKEN }}

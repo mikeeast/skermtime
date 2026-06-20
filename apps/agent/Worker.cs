@@ -20,6 +20,8 @@ public sealed class Worker(
         }
 
         IpcState.EnsureDir();
+        await Updater.CheckAsync(logger, stoppingToken);
+        var nextUpdateCheck = DateTimeOffset.UtcNow.AddHours(6);
 
         var interval = TimeSpan.FromSeconds(Math.Max(10, _opts.HeartbeatSeconds));
         long idleThresholdMs = Math.Max(10, _opts.IdleThresholdSeconds) * 1000L;
@@ -41,6 +43,12 @@ public sealed class Worker(
         {
             try { await Task.Delay(interval, stoppingToken); }
             catch (OperationCanceledException) { break; }
+
+            if (DateTimeOffset.UtcNow >= nextUpdateCheck)
+            {
+                nextUpdateCheck = DateTimeOffset.UtcNow.AddHours(6);
+                await Updater.CheckAsync(logger, stoppingToken);
+            }
 
             var nowMono = sw.Elapsed;
             var nowWall = DateTimeOffset.UtcNow;
