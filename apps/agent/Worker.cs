@@ -63,7 +63,10 @@ public sealed class Worker(
             if (active) activeSeconds += monoDelta;
 
             int consumed = (int)(activeSeconds / 60);
-            var hb = await api.HeartbeatAsync(token, consumed, stoppingToken);
+            // Foreground app reported by the overlay; attribute this tick's active time to it.
+            var report = IpcState.ReadReport();
+            int tickActiveSeconds = active ? (int)Math.Round(monoDelta) : 0;
+            var hb = await api.HeartbeatAsync(token, consumed, report?.App, tickActiveSeconds, stoppingToken);
             if (hb is null)
             {
                 logger.LogDebug("Heartbeat failed; will retry next tick.");
@@ -132,7 +135,7 @@ public sealed class Worker(
                 hb.LockNow,
                 hb.Reason,
                 hb.MinutesUntilWindow,
-                Array.Empty<MessageDto>(),
+                hb.Messages,
                 DateTimeOffset.UtcNow.ToString("o")));
         }
     }

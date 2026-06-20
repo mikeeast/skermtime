@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { authDevice } from "@/lib/agent/auth";
-import { DEFAULT_TIMEZONE, localClock } from "@/lib/earning/period";
+import { DEFAULT_TIMEZONE, localClock, localDay } from "@/lib/earning/period";
 import { evaluateSchedule, type LockWindow } from "@/lib/agent/policy";
+import { normalizeAppName } from "@/lib/agent/appname";
 
 // Agent reports consumed minutes and gets the current balance + lock policy back.
 export async function POST(request: Request) {
@@ -12,8 +13,15 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     consumedMinutes?: number;
     version?: string;
+    currentApp?: string;
+    currentAppSeconds?: number;
   };
   const consumed = Math.max(0, Math.trunc(body.consumedMinutes ?? 0));
+  const currentApp =
+    typeof body.currentApp === "string" && body.currentApp.trim()
+      ? normalizeAppName(body.currentApp)
+      : null;
+  const currentAppSeconds = Math.max(0, Math.trunc(body.currentAppSeconds ?? 0));
 
   if (consumed > 0) {
     await admin.from("ledger_entries").insert({
@@ -31,6 +39,7 @@ export async function POST(request: Request) {
     .update({
       last_seen_at: new Date().toISOString(),
       ...(body.version ? { agent_version: body.version } : {}),
+      ...(currentApp ? { current_app: currentApp, current_app_at: new Date().toISOString() } : {}),
     })
     .eq("id", device.id);
 
@@ -76,7 +85,38 @@ export async function POST(request: Request) {
   const lockNow = sched.inWindow || dailyCapReached;
   const reason = sched.inWindow ? "bedtime" : dailyCapReached ? "daily_cap" : null;
 
+  // Accumulate per-app usage for today (family-local day).
+  if (currentApp && currentAppSeconds > 0) {
+    await admin.rpc("increment_app_usage", {
+      p_device: device.id,
+      p_child: device.child_id,
+      p_family: device.family_id,
+      p_app: currentApp,
+      p_day: localDay(now, tz),
+      p_seconds: currentAppSeconds,
+    });
+  }
+
+  // Undelivered parent messages for this device — delivered exactly once.
+  const { data: msgs } = await admin
+    .from("device_messages")
+    .select("id, body")
+    .eq("device_id", device.id)
+    .is("delivered_at", null)
+    .order("created_at")
+    .limit(10);
+  if (msgs && msgs.length > 0) {
+    await admin
+      .from("device_messages")
+      .update({ delivered_at: new Date().toISOString() })
+      .in(
+        "id",
+        msgs.map((m) => m.id),
+      );
+  }
+
   return NextResponse.json({
+    messages: (msgs ?? []).map((m) => ({ id: m.id, body: m.body })),
     balanceMinutes: childRes.data?.balance_minutes ?? 0,
     warnAtMinutes: [10, 5, 1],
     lockAtMinutes: 0,

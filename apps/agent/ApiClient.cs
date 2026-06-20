@@ -18,7 +18,8 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
         int? MinutesUntilWindow,
         ScheduleWindow[] ScheduleWindows,
         int ServerLocalDow,
-        int ServerLocalMinute);
+        int ServerLocalMinute,
+        MessageDto[] Messages);
     public record TamperResult(int BonusMinutes, string? Message);
 
     private string Url(string path) => _opts.ServerUrl.TrimEnd('/') + path;
@@ -43,11 +44,22 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
         return body is null ? null : new PairResult(body.token, body.childAlias, body.balanceMinutes);
     }
 
-    public async Task<HeartbeatResult?> HeartbeatAsync(string token, int consumedMinutes, CancellationToken ct)
+    public async Task<HeartbeatResult?> HeartbeatAsync(
+        string token,
+        int consumedMinutes,
+        string? currentApp,
+        int currentAppSeconds,
+        CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, Url("/api/agent/heartbeat"))
         {
-            Content = JsonContent.Create(new { consumedMinutes, version = Version }),
+            Content = JsonContent.Create(new
+            {
+                consumedMinutes,
+                version = Version,
+                currentApp,
+                currentAppSeconds,
+            }),
         };
         req.Headers.Authorization = new("Bearer", token);
         var res = await http.SendAsync(req, ct);
@@ -66,7 +78,8 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
             body.minutesUntilWindow,
             windows,
             body.serverLocalDow,
-            body.serverLocalMinute);
+            body.serverLocalMinute,
+            body.messages ?? []);
     }
 
     public async Task<TamperResult?> ReportTamperAsync(string token, string type, string? writeup, CancellationToken ct)
@@ -92,7 +105,8 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
         int? minutesUntilWindow,
         ScheduleWindowDto[]? scheduleWindows,
         int serverLocalDow,
-        int serverLocalMinute);
+        int serverLocalMinute,
+        MessageDto[]? messages);
     private sealed record ScheduleWindowDto(int startMin, int endMin, int[]? days);
     private sealed record TamperResponse(int bonusMinutes, string? message);
 }
