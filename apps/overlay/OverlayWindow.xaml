@@ -1,0 +1,42 @@
+<Window x:Class="Skermtime.Overlay.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Skermtime"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        MouseLeftButtonDown="OnDrag">
+  <StackPanel HorizontalAlignment="Right">
+    <Border x:Name="MessageBorder"
+            Visibility="Collapsed"
+            CornerRadius="12"
+            Background="#F24F46E5"
+            Padding="12,8"
+            MaxWidth="240"
+            Margin="0,0,0,6">
+      <TextBlock x:Name="MessageText"
+                 Foreground="White"
+                 TextWrapping="Wrap"
+                 FontSize="13" />
+    </Border>
+
+    <Border x:Name="Pill"
+            CornerRadius="16"
+            Background="#E6111827"
+            Padding="14,7">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="⏱" FontSize="15" Margin="0,0,6,0" VerticalAlignment="Center" />
+        <TextBlock x:Name="TimeText"
+                   Text="–"
+                   Foreground="White"
+                   FontWeight="Bold"
+                   FontSize="15"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</Window>

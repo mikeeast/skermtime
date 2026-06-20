@@ -8,6 +8,7 @@ export async function POST(request: Request) {
     code?: string;
     name?: string;
     os?: string;
+    version?: string;
   };
   const code = (body.code ?? "").trim();
   if (!code) return NextResponse.json({ error: "missing code" }, { status: 400 });
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       code_expires_at: null,
       name: body.name ?? device.name,
       os: body.os ?? null,
+      agent_version: body.version ?? null,
       last_seen_at: new Date().toISOString(),
     })
     .eq("id", device.id);

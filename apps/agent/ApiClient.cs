@@ -23,11 +23,20 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
 
     private string Url(string path) => _opts.ServerUrl.TrimEnd('/') + path;
 
+    private static readonly string Version =
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
+
     public async Task<PairResult?> PairAsync(string code, CancellationToken ct)
     {
         var res = await http.PostAsJsonAsync(
             Url("/api/agent/pair"),
-            new { code, name = Environment.MachineName, os = Environment.OSVersion.VersionString },
+            new
+            {
+                code,
+                name = Environment.MachineName,
+                os = Environment.OSVersion.VersionString,
+                version = Version,
+            },
             ct);
         if (!res.IsSuccessStatusCode) return null;
         var body = await res.Content.ReadFromJsonAsync<PairResponse>(ct);
@@ -38,7 +47,7 @@ public sealed class ApiClient(HttpClient http, IOptions<AgentOptions> options)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, Url("/api/agent/heartbeat"))
         {
-            Content = JsonContent.Create(new { consumedMinutes }),
+            Content = JsonContent.Create(new { consumedMinutes, version = Version }),
         };
         req.Headers.Authorization = new("Bearer", token);
         var res = await http.SendAsync(req, ct);

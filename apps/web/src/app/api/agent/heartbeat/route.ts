@@ -9,7 +9,10 @@ export async function POST(request: Request) {
   if (!ctx) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { admin, device } = ctx;
 
-  const body = (await request.json().catch(() => ({}))) as { consumedMinutes?: number };
+  const body = (await request.json().catch(() => ({}))) as {
+    consumedMinutes?: number;
+    version?: string;
+  };
   const consumed = Math.max(0, Math.trunc(body.consumedMinutes ?? 0));
 
   if (consumed > 0) {
@@ -23,7 +26,13 @@ export async function POST(request: Request) {
       note: device.name,
     });
   }
-  await admin.from("devices").update({ last_seen_at: new Date().toISOString() }).eq("id", device.id);
+  await admin
+    .from("devices")
+    .update({
+      last_seen_at: new Date().toISOString(),
+      ...(body.version ? { agent_version: body.version } : {}),
+    })
+    .eq("id", device.id);
 
   const [childRes, famRes, scheduleRes] = await Promise.all([
     admin

@@ -26,6 +26,7 @@ type DeviceRow = {
   pairing_code: string | null;
   revoked: boolean;
   last_seen_at: string | null;
+  agent_version: string | null;
 };
 type ChoreOpt = {
   id: string;
@@ -81,7 +82,7 @@ export default async function ChildPage({
         .limit(50),
       supabase
         .from("devices")
-        .select("id, name, paired, pairing_code, revoked, last_seen_at")
+        .select("id, name, paired, pairing_code, revoked, last_seen_at, agent_version")
         .eq("child_id", id)
         .order("created_at"),
       supabase

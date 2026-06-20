@@ -19,6 +19,8 @@ public sealed class Worker(
             return;
         }
 
+        IpcState.EnsureDir();
+
         var interval = TimeSpan.FromSeconds(Math.Max(10, _opts.HeartbeatSeconds));
         long idleThresholdMs = Math.Max(10, _opts.IdleThresholdSeconds) * 1000L;
 
@@ -123,6 +125,15 @@ public sealed class Worker(
                 logger.LogInformation("Saldo slut — låser skärmen.");
                 if (OperatingSystem.IsWindows()) Native.Lock();
             }
+
+            // Publish state for the user-session overlay.
+            IpcState.WriteState(new AgentState(
+                Math.Max(0, effective),
+                hb.LockNow,
+                hb.Reason,
+                hb.MinutesUntilWindow,
+                Array.Empty<MessageDto>(),
+                DateTimeOffset.UtcNow.ToString("o")));
         }
     }
 

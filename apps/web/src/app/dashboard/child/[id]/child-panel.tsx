@@ -23,7 +23,17 @@ type DeviceRow = {
   pairing_code: string | null;
   revoked: boolean;
   last_seen_at: string | null;
+  agent_version: string | null;
 };
+
+// Online dot from last heartbeat: green <3 min, amber <30 min, else grey.
+function onlineDot(lastSeen: string | null): string {
+  if (!lastSeen) return "bg-muted-foreground/40";
+  const ageMin = (Date.now() - new Date(lastSeen).getTime()) / 60000;
+  if (ageMin < 3) return "bg-emerald-500";
+  if (ageMin < 30) return "bg-amber-500";
+  return "bg-muted-foreground/40";
+}
 type ChoreOpt = {
   id: string;
   name: string;
@@ -176,6 +186,7 @@ export function ChildPanel({
         pairing_code: null,
         revoked: false,
         last_seen_at: null,
+        agent_version: null,
       },
     });
     deviceRef.current?.reset();
@@ -415,7 +426,11 @@ export function ChildPanel({
                 key={d.id}
                 className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm"
               >
+                <span className={`h-2 w-2 shrink-0 rounded-full ${onlineDot(d.last_seen_at)}`} />
                 <span className="font-medium">{d.name}</span>
+                {d.agent_version && (
+                  <span className="text-xs text-muted-foreground">v{d.agent_version}</span>
+                )}
                 {d.paired ? (
                   <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
                     parad
