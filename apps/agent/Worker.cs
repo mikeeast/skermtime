@@ -19,6 +19,10 @@ public sealed class Worker(
             return;
         }
 
+        IpcState.EnsureDir();
+        await Updater.CheckAsync(logger, stoppingToken);
+        var nextUpdateCheck = DateTimeOffset.UtcNow.AddHours(6);
+
         var interval = TimeSpan.FromSeconds(Math.Max(10, _opts.HeartbeatSeconds));
         long idleThresholdMs = Math.Max(10, _opts.IdleThresholdSeconds) * 1000L;
 
@@ -39,6 +43,12 @@ public sealed class Worker(
         {
             try { await Task.Delay(interval, stoppingToken); }
             catch (OperationCanceledException) { break; }
+
+            if (DateTimeOffset.UtcNow >= nextUpdateCheck)
+            {
+                nextUpdateCheck = DateTimeOffset.UtcNow.AddHours(6);
+                await Updater.CheckAsync(logger, stoppingToken);
+            }
 
             var nowMono = sw.Elapsed;
             var nowWall = DateTimeOffset.UtcNow;
@@ -61,7 +71,10 @@ public sealed class Worker(
             if (active) activeSeconds += monoDelta;
 
             int consumed = (int)(activeSeconds / 60);
-            var hb = await api.HeartbeatAsync(token, consumed, stoppingToken);
+            // Foreground app reported by the overlay; attribute this tick's active time to it.
+            var report = IpcState.ReadReport();
+            int tickActiveSeconds = active ? (int)Math.Round(monoDelta) : 0;
+            var hb = await api.HeartbeatAsync(token, consumed, report?.App, tickActiveSeconds, stoppingToken);
             if (hb is null)
             {
                 logger.LogDebug("Heartbeat failed; will retry next tick.");
@@ -123,6 +136,15 @@ public sealed class Worker(
                 logger.LogInformation("Saldo slut — låser skärmen.");
                 if (OperatingSystem.IsWindows()) Native.Lock();
             }
+
+            // Publish state for the user-session overlay.
+            IpcState.WriteState(new AgentState(
+                Math.Max(0, effective),
+                hb.LockNow,
+                hb.Reason,
+                hb.MinutesUntilWindow,
+                hb.Messages,
+                DateTimeOffset.UtcNow.ToString("o")));
         }
     }
 

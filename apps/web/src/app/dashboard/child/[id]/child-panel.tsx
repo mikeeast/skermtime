@@ -4,6 +4,7 @@ import { useOptimistic, useRef, useState } from "react";
 import Link from "next/link";
 import { adjustBalance, awardBounty, markChoreDone, setChildPin } from "../../chore-actions";
 import { createDevice, revokeDevice } from "../../device-actions";
+import { sendDeviceMessage } from "../../device-message-actions";
 import { disconnectStrava, updateFamilyEarning } from "../../strava-actions";
 import { updateNotifyPrefs } from "../../notify-actions";
 import { ScheduleEditor, type Schedule } from "./schedule-editor";
@@ -23,7 +24,25 @@ type DeviceRow = {
   pairing_code: string | null;
   revoked: boolean;
   last_seen_at: string | null;
+  agent_version: string | null;
+  current_app: string | null;
+  current_app_at: string | null;
 };
+type TopApp = { app: string; minutes: number };
+
+// Online dot from last heartbeat: green <3 min, amber <30 min, else grey.
+function onlineDot(lastSeen: string | null): string {
+  if (!lastSeen) return "bg-muted-foreground/40";
+  const ageMin = (Date.now() - new Date(lastSeen).getTime()) / 60000;
+  if (ageMin < 3) return "bg-emerald-500";
+  if (ageMin < 30) return "bg-amber-500";
+  return "bg-muted-foreground/40";
+}
+
+// Treat a reported foreground app as "live" if seen in the last 10 minutes.
+function isRecentApp(at: string | null): boolean {
+  return !!at && Date.now() - new Date(at).getTime() < 600_000;
+}
 type ChoreOpt = {
   id: string;
   name: string;
@@ -84,6 +103,7 @@ export function ChildPanel({
   schedules,
   dailyCap,
   notifyPrefs,
+  topApps,
 }: {
   childId: string;
   alias: string;
@@ -100,6 +120,7 @@ export function ChildPanel({
   schedules: Schedule[];
   dailyCap: number | null;
   notifyPrefs: NotifyPrefs | null;
+  topApps: TopApp[];
 }) {
   const [wallet, walletDispatch] = useOptimistic(
     { balance: initialBalance, ledger: initialLedger },
@@ -130,9 +151,11 @@ export function ChildPanel({
   );
 
   const [logged, setLogged] = useState<string | null>(null);
+  const [msgSent, setMsgSent] = useState(false);
   const adjustRef = useRef<HTMLFormElement>(null);
   const bountyRef = useRef<HTMLFormElement>(null);
   const deviceRef = useRef<HTMLFormElement>(null);
+  const msgRef = useRef<HTMLFormElement>(null);
 
   async function onLogChore(c: ChoreOpt) {
     // Auto-approved chores credit immediately; others go to the approvals queue.
@@ -176,6 +199,9 @@ export function ChildPanel({
         pairing_code: null,
         revoked: false,
         last_seen_at: null,
+        agent_version: null,
+        current_app: null,
+        current_app_at: null,
       },
     });
     deviceRef.current?.reset();
@@ -188,6 +214,15 @@ export function ChildPanel({
     fd.set("deviceId", id);
     fd.set("childId", childId);
     await revokeDevice(fd);
+  }
+
+  async function onSendMessage(formData: FormData) {
+    const body = String(formData.get("body") ?? "").trim();
+    if (!body) return;
+    setMsgSent(true);
+    msgRef.current?.reset();
+    setTimeout(() => setMsgSent(false), 2500);
+    await sendDeviceMessage(formData);
   }
 
   const visibleDevices = devices.filter((d) => !d.revoked);
@@ -415,7 +450,16 @@ export function ChildPanel({
                 key={d.id}
                 className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm"
               >
+                <span className={`h-2 w-2 shrink-0 rounded-full ${onlineDot(d.last_seen_at)}`} />
                 <span className="font-medium">{d.name}</span>
+                {d.agent_version && (
+                  <span className="text-xs text-muted-foreground">v{d.agent_version}</span>
+                )}
+                {d.current_app && isRecentApp(d.current_app_at) && (
+                  <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300">
+                    🎮 {d.current_app}
+                  </span>
+                )}
                 {d.paired ? (
                   <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-400">
                     parad
@@ -451,7 +495,40 @@ export function ChildPanel({
             Skapa parningskod
           </button>
         </form>
+
+        <form ref={msgRef} action={onSendMessage} className="mt-4 border-t border-border pt-4">
+          <input type="hidden" name="childId" value={childId} />
+          <label className="text-sm font-semibold">Skicka meddelande till datorn</label>
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              name="body"
+              maxLength={300}
+              placeholder="t.ex. Maten är klar! 🍝"
+              className="h-9 flex-1 rounded-lg border border-border bg-card px-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/40"
+            />
+            <button className="h-9 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90">
+              {msgSent ? "Skickat ✓" : "Skicka"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Dyker upp som en bubbla på barnets skärm.
+          </p>
+        </form>
       </section>
+
+      {topApps.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold">Mest spelat (7 dgr)</h2>
+          <ul className="mt-3 flex flex-col divide-y divide-border">
+            {topApps.map((a) => (
+              <li key={a.app} className="flex items-center justify-between py-2 text-sm">
+                <span>🎮 {a.app}</span>
+                <span className="tabular-nums text-muted-foreground">{formatMinutes(a.minutes)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <ScheduleEditor childId={childId} initialSchedules={schedules} dailyCap={dailyCap} />
 

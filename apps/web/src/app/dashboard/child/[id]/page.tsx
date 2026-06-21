@@ -12,6 +12,11 @@ type NotifyPrefs = {
   low_balance_threshold: number;
 };
 
+// Module scope keeps the impure date math out of the component render body.
+function sevenDaysAgoDay(): string {
+  return new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+}
+
 type LedgerEntry = {
   id: string;
   delta_minutes: number;
@@ -26,6 +31,9 @@ type DeviceRow = {
   pairing_code: string | null;
   revoked: boolean;
   last_seen_at: string | null;
+  agent_version: string | null;
+  current_app: string | null;
+  current_app_at: string | null;
 };
 type ChoreOpt = {
   id: string;
@@ -71,8 +79,18 @@ export default async function ChildPage({
     .single();
   if (!child) notFound();
 
-  const [ledgerRes, devicesRes, choresRes, stravaConnRes, runsRes, familyRes, scheduleRes, prefsRes] =
-    await Promise.all([
+  const since7 = sevenDaysAgoDay();
+  const [
+    ledgerRes,
+    devicesRes,
+    choresRes,
+    stravaConnRes,
+    runsRes,
+    familyRes,
+    scheduleRes,
+    prefsRes,
+    usageRes,
+  ] = await Promise.all([
       supabase
         .from("ledger_entries")
         .select("id, delta_minutes, kind, note, created_at")
@@ -81,7 +99,9 @@ export default async function ChildPage({
         .limit(50),
       supabase
         .from("devices")
-        .select("id, name, paired, pairing_code, revoked, last_seen_at")
+        .select(
+          "id, name, paired, pairing_code, revoked, last_seen_at, agent_version, current_app, current_app_at",
+        )
         .eq("child_id", id)
         .order("created_at"),
       supabase
@@ -119,7 +139,19 @@ export default async function ChildPage({
         .select("email_approvals, email_low_balance, email_weekly, low_balance_threshold")
         .eq("family_id", child.family_id)
         .maybeSingle(),
+      supabase.from("app_usage").select("app, seconds").eq("child_id", id).gte("day", since7),
     ]);
+
+  // Aggregate "most played" over the last 7 days.
+  const usageByApp = new Map<string, number>();
+  for (const r of (usageRes.data ?? []) as { app: string; seconds: number }[]) {
+    usageByApp.set(r.app, (usageByApp.get(r.app) ?? 0) + (r.seconds ?? 0));
+  }
+  const topApps = [...usageByApp.entries()]
+    .map(([app, seconds]) => ({ app, minutes: Math.round(seconds / 60) }))
+    .filter((a) => a.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 5);
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -151,6 +183,7 @@ export default async function ChildPage({
         schedules={(scheduleRes.data ?? []) as Schedule[]}
         dailyCap={child.daily_screen_cap_minutes ?? null}
         notifyPrefs={(prefsRes.data ?? null) as NotifyPrefs | null}
+        topApps={topApps}
       />
     </main>
   );

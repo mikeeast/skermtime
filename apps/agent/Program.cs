@@ -1,4 +1,8 @@
 using Skermtime.Agent;
+using Velopack;
+
+// Must run first: handles Velopack install/update/uninstall hooks (may exit early).
+VelopackApp.Build().Run();
 
 var builder = Host.CreateApplicationBuilder(args);
 
